@@ -84,7 +84,10 @@ export default function Login() {
           {isLogin ? "Squad Login" : "Join the Squad"}
         </h2>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form
+          onSubmit={handleSubmit(onSubmit, () => toast.error("Please enter both your name and password."))}
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
             <Input id="name" {...register("name", { required: true })} className="bg-neutral-950 border-neutral-700" placeholder="e.g. Tony Stark" />

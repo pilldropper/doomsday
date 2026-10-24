@@ -6,23 +6,43 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useUser } from "@/lib/UserContext";
 
-export default function RsvpOpen({ onComplete }: { onComplete: () => void }) {
+const DEFAULT_VOTING_OPTIONS = [
+  "2026-12-18",
+  "2026-12-19",
+  "2026-12-20",
+  "Too early, let's settle this closer to December.",
+];
+
+export default function RsvpOpen({
+  appState,
+  onComplete,
+}: {
+  appState?: Record<string, unknown> | null;
+  onComplete: () => void;
+}) {
   const { user, setUser } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [votingOptions, setVotingOptions] = useState<string[]>([]);
+  const [votingOptions, setVotingOptions] = useState<string[]>(
+    (appState?.voting_dates as string[]) || DEFAULT_VOTING_OPTIONS
+  );
   const [selectedDates, setSelectedDates] = useState<string[]>(user?.voted_dates || []);
 
   useEffect(() => {
+    if (Array.isArray(appState?.voting_dates)) {
+      setVotingOptions(appState.voting_dates as string[]);
+      return;
+    }
+
     async function fetchDates() {
-      const { data } = await supabase.from('app_state').select('voting_dates').single();
+      const { data } = await supabase.from("app_state").select("voting_dates").eq("id", 1).single();
       if (data && data.voting_dates) {
         setVotingOptions(data.voting_dates);
       } else {
-        setVotingOptions(["2026-12-18", "2026-12-19", "2026-12-20", "Too early, let's settle this closer to December."]);
+        setVotingOptions(DEFAULT_VOTING_OPTIONS);
       }
     }
     fetchDates();
-  }, []);
+  }, [appState?.voting_dates]);
 
   const handleDateChange = (date: string) => {
     setSelectedDates(prev =>
@@ -69,7 +89,7 @@ export default function RsvpOpen({ onComplete }: { onComplete: () => void }) {
         <section className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl">
           <h2 className="text-2xl font-bold mb-4 text-green-400">How It Works</h2>
           <ol className="list-decimal list-inside space-y-2 text-neutral-300">
-            <li><strong className="text-white">Pick your dates.</strong> Vote for all the days you are free.</li>
+            <li><strong className="text-white">Pick your dates.</strong> Vote for all the days &amp; times you are free.</li>
             <li><strong className="text-white">Confirm the date.</strong> Once majority decides, verify you can make the winning date.</li>
             <li><strong className="text-white">Chip in your ticket.</strong> Once the date is locked, send funds and upload receipt.</li>
             <li><strong className="text-white">Pick your seat later.</strong> Everyone who funded a ticket gets early access to pick their exact chair on our custom theater map.</li>
@@ -77,10 +97,10 @@ export default function RsvpOpen({ onComplete }: { onComplete: () => void }) {
         </section>
 
         <section className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl">
-          <h2 className="text-2xl font-bold mb-6 text-green-400">Step 1: Vote for Dates</h2>
+          <h2 className="text-2xl font-bold mb-6 text-green-400">Step 1: Vote for Dates &amp; Times</h2>
           <div className="space-y-6">
             <div className="space-y-3">
-              <Label>Vote for all dates you are available</Label>
+              <Label>Vote for all slots you are available</Label>
               <div className="grid gap-2">
                 {votingOptions.map((date) => (
                   <label key={date} className="flex items-center space-x-3 bg-neutral-950 p-3 rounded-lg border border-neutral-800 hover:border-green-500/50 cursor-pointer transition-colors">

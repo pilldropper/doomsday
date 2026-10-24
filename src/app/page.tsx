@@ -78,7 +78,7 @@ export default function Home() {
         Logged in as <span className="text-green-500 font-bold">{user.name}</span>
       </div>
 
-      {appState?.current_phase === "RSVP_OPEN" && <RsvpOpen onComplete={fetchAppState} />}
+      {appState?.current_phase === "RSVP_OPEN" && <RsvpOpen appState={appState} onComplete={fetchAppState} />}
       {appState?.current_phase === "DATE_CONFIRMATION" && <DateConfirmation appState={appState} />}
       {appState?.current_phase === "PAYMENT" && <PaymentPhase />}
       {appState?.current_phase === "WAITING_ROOM" && <WaitingRoom appState={appState} />}

@@ -5,7 +5,46 @@ import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toaster, toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Trash2, Plus, Trophy, Clock } from "lucide-react";
+
+function formatTime12h(time24: string): string {
+  if (!time24) return "";
+  const [hourStr, minuteStr] = time24.split(":");
+  if (hourStr === undefined || minuteStr === undefined) return "";
+  let hour = parseInt(hourStr, 10);
+  if (isNaN(hour)) return "";
+  const ampm = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12 || 12;
+  return `${hour}:${minuteStr} ${ampm}`;
+}
+
+function parseTime24h(time12: string): string {
+  const match = time12.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return "";
+  let hour = parseInt(match[1], 10);
+  const minute = match[2];
+  const period = match[3].toUpperCase();
+  if (period === "PM" && hour < 12) hour += 12;
+  if (period === "AM" && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, "0")}:${minute}`;
+}
+
+function parseDateChoice(choice: string): { isDate: boolean; date: string; time24: string } {
+  const match = choice.trim().match(/^(\d{4}-\d{2}-\d{2})(?:\s*(?:•|@|-|\|)\s*(\d{1,2}:\d{2}\s*(?:AM|PM)))?$/i);
+  if (!match) {
+    return { isDate: false, date: "", time24: "" };
+  }
+  return {
+    isDate: true,
+    date: match[1],
+    time24: match[2] ? parseTime24h(match[2]) : "",
+  };
+}
+
+function buildDateChoice(date: string, time24: string): string {
+  const formattedTime = formatTime12h(time24);
+  return formattedTime ? `${date} • ${formattedTime}` : date;
+}
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -17,10 +56,15 @@ export default function AdminDashboard() {
   const [appState, setAppState] = useState<Record<string, unknown> | null>(null);
   const [seats, setSeats] = useState<Record<string, unknown>[]>([]);
 
+  // New voting choice inputs
+  const [newChoiceDate, setNewChoiceDate] = useState("2026-12-18");
+  const [newChoiceTime, setNewChoiceTime] = useState("19:00");
+  const [newCustomChoice, setNewCustomChoice] = useState("");
+
   // Auth Check (Simple client-side for this mockup, though real implementation uses cookies)
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === process.env.NEXT_PUBLIC_ADMIN_SECRET_KEY || password === "doomsday_admin_123") {
+    if (password === process.env.NEXT_PUBLIC_ADMIN_SECRET_KEY || password === "chinkodaisuki") {
       setIsAuthenticated(true);
       fetchData();
     } else {
@@ -51,12 +95,54 @@ export default function AdminDashboard() {
   };
 
   const updateAppState = async (field: string, value: unknown) => {
+    setAppState(prev => (prev ? { ...prev, [field]: value } : { [field]: value }));
     const { error } = await supabase.from("app_state").update({ [field]: value }).eq("id", 1);
     if (error) toast.error("Failed to update state");
     else {
       toast.success(`App state updated: ${field}`);
       fetchData();
     }
+  };
+
+  const votingDates = (appState?.voting_dates as string[]) || [];
+
+  const handleAddDateChoice = async () => {
+    if (!newChoiceDate) {
+      toast.error("Please pick a date first");
+      return;
+    }
+    const formatted = buildDateChoice(newChoiceDate, newChoiceTime);
+    if (votingDates.includes(formatted)) {
+      toast.error("That date & time choice already exists");
+      return;
+    }
+    await updateAppState("voting_dates", [...votingDates, formatted]);
+  };
+
+  const handleAddCustomChoice = async () => {
+    const trimmed = newCustomChoice.trim();
+    if (!trimmed) return;
+    if (votingDates.includes(trimmed)) {
+      toast.error("That choice already exists");
+      return;
+    }
+    setNewCustomChoice("");
+    await updateAppState("voting_dates", [...votingDates, trimmed]);
+  };
+
+  const handleUpdateChoiceAtIndex = async (index: number, updatedValue: string) => {
+    const updated = [...votingDates];
+    updated[index] = updatedValue;
+    await updateAppState("voting_dates", updated);
+  };
+
+  const handleDeleteChoiceAtIndex = async (index: number) => {
+    const updated = votingDates.filter((_, idx) => idx !== index);
+    await updateAppState("voting_dates", updated);
+  };
+
+  const getVoteCount = (choice: string) => {
+    return users.filter(u => Array.isArray(u.voted_dates) && (u.voted_dates as string[]).includes(choice)).length;
   };
 
   const [seatConfig, setSeatConfig] = useState({ rowLabel: "A", count: 12 });
@@ -166,7 +252,7 @@ export default function AdminDashboard() {
                   </tr>
                 ))}
                 {users.length === 0 && (
-                  <tr><td colSpan={5} className="p-8 text-center text-neutral-600">No RSVPs yet.</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-neutral-600">No RSVPs yet.</td></tr>
                 )}
               </tbody>
             </table>
@@ -175,9 +261,9 @@ export default function AdminDashboard() {
       )}
 
       {activeTab === "state" && (
-        <div className="space-y-8 max-w-xl">
-          <div className="space-y-4 bg-neutral-900 p-6 rounded-lg border border-neutral-800">
-            <h2 className="text-xl text-white mb-4">Global State Controller</h2>
+        <div className="space-y-8 max-w-2xl">
+          <div className="space-y-6 bg-neutral-900 p-6 rounded-lg border border-neutral-800">
+            <h2 className="text-xl text-white">Global State Controller</h2>
 
             <div className="space-y-2">
               <label className="text-sm text-neutral-400">Current Phase</label>
@@ -196,11 +282,12 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-neutral-400">Winning Date (Displayed in phases 2-3)</label>
+              <label className="text-sm text-neutral-400">Winning Date &amp; Time (Displayed in phases 1.5–3)</label>
               <Input
                 value={String(appState?.winning_date || "")}
                 onChange={(e) => setAppState({...appState, winning_date: e.target.value})}
                 onBlur={(e) => updateAppState("winning_date", e.target.value)}
+                placeholder="e.g. 2026-12-18 • 7:00 PM"
                 className="bg-neutral-950 border-neutral-700"
               />
             </div>
@@ -215,15 +302,168 @@ export default function AdminDashboard() {
               />
             </div>
 
-             <div className="space-y-2 pt-4 border-t border-neutral-800">
-              <label className="text-sm text-neutral-400">Voting Dates (Comma separated)</label>
-              <textarea
-                value={String((appState?.voting_dates as string[])?.join("\n") || "")}
-                onChange={(e) => setAppState({...appState, voting_dates: e.target.value.split("\n")})}
-                onBlur={(e) => updateAppState("voting_dates", e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
-                className="w-full bg-neutral-950 border border-neutral-700 p-2 rounded text-white min-h-[100px]"
-                placeholder="2026-12-18\n2026-12-19\nToo early..."
-              />
+            {/* Voting Date & Time Choices Manager */}
+            <div className="space-y-4 pt-6 border-t border-neutral-800">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-bold text-green-400 uppercase tracking-wider">
+                  Voting Date &amp; Time Choices
+                </label>
+                <span className="text-xs text-neutral-500">{votingDates.length} options</span>
+              </div>
+
+              {/* Add Date + Time Option */}
+              <div className="bg-neutral-950 p-4 rounded-lg border border-neutral-800 space-y-3">
+                <div className="text-xs text-neutral-400 uppercase tracking-wider">Add Date &amp; Showtime Slot</div>
+                <div className="flex flex-wrap sm:flex-nowrap items-end gap-3">
+                  <div className="space-y-1 flex-1 min-w-[140px]">
+                    <label className="text-xs text-neutral-500">Date</label>
+                    <Input
+                      type="date"
+                      value={newChoiceDate}
+                      onChange={(e) => setNewChoiceDate(e.target.value)}
+                      className="bg-neutral-900 border-neutral-700 text-white"
+                    />
+                  </div>
+                  <div className="space-y-1 flex-1 min-w-[120px]">
+                    <label className="text-xs text-neutral-500">Time (Optional)</label>
+                    <Input
+                      type="time"
+                      value={newChoiceTime}
+                      onChange={(e) => setNewChoiceTime(e.target.value)}
+                      className="bg-neutral-900 border-neutral-700 text-white"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleAddDateChoice}
+                    className="bg-green-600 hover:bg-green-700 text-white shrink-0"
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Add Slot
+                  </Button>
+                </div>
+
+                {/* Add Custom Text Choice */}
+                <div className="pt-3 border-t border-neutral-900 flex gap-2">
+                  <Input
+                    value={newCustomChoice}
+                    onChange={(e) => setNewCustomChoice(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddCustomChoice();
+                      }
+                    }}
+                    placeholder="Or add custom choice (e.g. Too early, let's settle closer to Dec)"
+                    className="bg-neutral-900 border-neutral-700 text-white flex-1"
+                  />
+                  <Button type="button" variant="outline" onClick={handleAddCustomChoice} className="shrink-0">
+                    <Plus className="w-4 h-4 mr-1" /> Add Custom
+                  </Button>
+                </div>
+              </div>
+
+              {/* Existing Choices List */}
+              <div className="space-y-2">
+                {votingDates.map((choice, idx) => {
+                  const parsed = parseDateChoice(choice);
+                  const votes = getVoteCount(choice);
+                  const isWinning = appState?.winning_date === choice;
+
+                  return (
+                    <div
+                      key={`${idx}-${choice}`}
+                      className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 rounded-lg border ${
+                        isWinning
+                          ? "bg-green-950/20 border-green-500/50"
+                          : "bg-neutral-950 border-neutral-800"
+                      }`}
+                    >
+                      {parsed.isDate ? (
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1">
+                          <Input
+                            type="date"
+                            value={parsed.date}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleUpdateChoiceAtIndex(idx, buildDateChoice(e.target.value, parsed.time24));
+                              }
+                            }}
+                            className="bg-neutral-900 border-neutral-700 text-white w-40"
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                            <Input
+                              type="time"
+                              value={parsed.time24}
+                              onChange={(e) => {
+                                handleUpdateChoiceAtIndex(idx, buildDateChoice(parsed.date, e.target.value));
+                              }}
+                              className="bg-neutral-900 border-neutral-700 text-green-400 w-32"
+                              title="Set or update time for this date"
+                            />
+                            {parsed.time24 && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateChoiceAtIndex(idx, parsed.date)}
+                                className="text-xs text-neutral-500 hover:text-neutral-300 px-1"
+                                title="Clear time"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                          <span className="text-xs text-neutral-400 truncate">
+                            ({choice})
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex-1 min-w-0">
+                          <Input
+                            defaultValue={choice}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val && val !== choice) {
+                                handleUpdateChoiceAtIndex(idx, val);
+                              }
+                            }}
+                            className="bg-neutral-900 border-neutral-700 text-neutral-200 w-full"
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs px-2 py-1 rounded bg-neutral-900 border border-neutral-800 text-neutral-400">
+                          {votes} {votes === 1 ? "vote" : "votes"}
+                        </span>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant={isWinning ? "default" : "outline"}
+                          onClick={() => updateAppState("winning_date", choice)}
+                          title="Set as Winning Date & Time"
+                        >
+                          <Trophy className="w-3 h-3 mr-1" />
+                          {isWinning ? "Winner" : "Set Winner"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="destructive"
+                          onClick={() => handleDeleteChoiceAtIndex(idx)}
+                          title="Delete Choice"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {votingDates.length === 0 && (
+                  <div className="text-center text-sm text-neutral-600 py-4">
+                    No voting choices configured yet. Add one above!
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
