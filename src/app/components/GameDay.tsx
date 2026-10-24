@@ -73,6 +73,7 @@ export default function GameDay({ appState }: { appState: Record<string, unknown
                     ${seat.status === 'occupied' ? 'bg-neutral-800 border border-neutral-700' : ''}
                     ${seat.status === 'available' ? 'bg-neutral-900 border border-neutral-800' : ''}
                     ${seat.status === 'unavailable' ? 'bg-transparent opacity-0' : ''}
+                    ${seat.status === 'space' ? 'bg-transparent opacity-0' : ''}
                   `}
                 >
                   {seat.status === 'occupied' && (seat.users as Record<string, unknown>)?.avatar_url ? (
