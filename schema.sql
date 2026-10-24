@@ -60,6 +60,7 @@ CREATE POLICY "Public update app_state" ON app_state FOR UPDATE TO anon, authent
 CREATE POLICY "Anyone can insert users" ON users FOR INSERT TO anon, authenticated WITH CHECK (true);
 CREATE POLICY "Public read users" ON users FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Anyone can update users" ON users FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Anyone can delete users" ON users FOR DELETE TO anon, authenticated USING (true);
 
 -- Seats Policies
 CREATE POLICY "Public read seats" ON seats FOR SELECT TO anon, authenticated USING (true);

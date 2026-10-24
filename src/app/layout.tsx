@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { UserProvider } from '@/lib/UserContext'
-import ChatBox from './components/ChatBox' // We will create this later
+import ChatBox from './components/ChatBox'
+import SquadRosterTab from './components/SquadRosterTab'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -21,6 +22,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <UserProvider>
           {children}
+          <SquadRosterTab />
           <ChatBox />
         </UserProvider>
       </body>
