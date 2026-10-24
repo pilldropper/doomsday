@@ -60,3 +60,23 @@ CREATE POLICY "Public read receipts" ON storage.objects FOR SELECT USING (bucket
 
 -- Initialize default app state
 INSERT INTO app_state (id, current_phase, cinema_details) VALUES (1, 'RSVP_OPEN', 'TBD');
+-- Add password and is_available to users
+ALTER TABLE users ADD COLUMN password TEXT;
+ALTER TABLE users ADD COLUMN is_available BOOLEAN DEFAULT NULL;
+
+-- Create chat_messages table
+CREATE TABLE chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+
+-- Chat Policies
+CREATE POLICY "Public read chat_messages" ON chat_messages FOR SELECT TO anon USING (true);
+CREATE POLICY "Public read chat_messages auth" ON chat_messages FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Anyone can insert chat_messages" ON chat_messages FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "Anyone can insert chat_messages auth" ON chat_messages FOR INSERT TO authenticated WITH CHECK (true);

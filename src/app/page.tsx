@@ -7,10 +7,15 @@ import RsvpOpen from "./components/RsvpOpen";
 import WaitingRoom from "./components/WaitingRoom";
 import SeatSelection from "./components/SeatSelection";
 import GameDay from "./components/GameDay";
+import DateConfirmation from "./components/DateConfirmation";
+import PaymentPhase from "./components/PaymentPhase";
+import Login from "./components/Login";
+import { useUser } from "@/lib/UserContext";
 
 export default function Home() {
   const [appState, setAppState] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useUser();
 
   useEffect(() => {
     fetchAppState();
@@ -58,9 +63,24 @@ export default function Home() {
     return <div className="min-h-screen flex items-center justify-center bg-black text-green-500">Loading...</div>;
   }
 
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-neutral-950 text-neutral-50 selection:bg-green-500/30">
+        <Login />
+        <Toaster theme="dark" />
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-50 selection:bg-green-500/30">
+    <main className="min-h-screen bg-neutral-950 text-neutral-50 selection:bg-green-500/30 pb-20">
+      <div className="absolute top-4 right-4 text-sm text-neutral-400">
+        Logged in as <span className="text-green-500 font-bold">{user.name}</span>
+      </div>
+
       {appState?.current_phase === "RSVP_OPEN" && <RsvpOpen onComplete={fetchAppState} />}
+      {appState?.current_phase === "DATE_CONFIRMATION" && <DateConfirmation appState={appState} />}
+      {appState?.current_phase === "PAYMENT" && <PaymentPhase />}
       {appState?.current_phase === "WAITING_ROOM" && <WaitingRoom appState={appState} />}
       {appState?.current_phase === "SEAT_SELECTION" && <SeatSelection />}
       {appState?.current_phase === "GAME_DAY" && <GameDay appState={appState} />}

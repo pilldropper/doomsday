@@ -10,7 +10,7 @@ type Seat = {
   id: string;
   row_label: string;
   seat_number: number;
-  status: "available" | "occupied" | "unavailable";
+  status: "available" | "occupied" | "unavailable" | "space";
   user_id: string | null;
   users?: { name: string; avatar_url: string };
 };
@@ -157,6 +157,7 @@ export default function SeatSelection() {
                     ${seat.status === 'available' ? 'border-green-500/50 bg-green-950/20 hover:bg-green-500/20 hover:border-green-400 cursor-pointer shadow-[inset_0_0_10px_rgba(34,197,94,0.1)] hover:shadow-[0_0_15px_rgba(34,197,94,0.4)]' : ''}
                     ${seat.status === 'occupied' ? 'border-neutral-700 bg-neutral-800 cursor-not-allowed' : ''}
                     ${seat.status === 'unavailable' ? 'border-neutral-900 bg-neutral-950 opacity-20 cursor-not-allowed' : ''}
+                    ${seat.status === 'space' ? 'opacity-0 cursor-default' : ''}
                   `}
                   title={seat.status === 'occupied' ? `Claimed by ${seat.users?.name}` : seat.status === 'available' ? `Seat ${seat.row_label}${seat.seat_number} — Available` : 'Unavailable'}
                 >

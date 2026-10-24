@@ -82,8 +82,13 @@ export default function AdminDashboard() {
     fetchData();
   };
 
-  const toggleSeatStatus = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === "unavailable" ? "available" : "unavailable";
+  const toggleSeatStatus = async (id: string, currentStatus: string, action?: string) => {
+    let newStatus = "available";
+    if (action === "space") {
+       newStatus = currentStatus === "space" ? "available" : "space";
+    } else {
+       newStatus = currentStatus === "unavailable" ? "available" : "unavailable";
+    }
     await supabase.from("seats").update({ status: newStatus }).eq("id", id);
     fetchData();
   };
@@ -125,6 +130,7 @@ export default function AdminDashboard() {
                 <tr>
                   <th className="p-4">Name</th>
                   <th className="p-4">Voted Dates</th>
+                  <th className="p-4">Available?</th>
                   <th className="p-4">Receipt</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 text-right">Actions</th>
@@ -141,6 +147,9 @@ export default function AdminDashboard() {
                       {String(u.name)}
                     </td>
                     <td className="p-4 text-xs">{String((u.voted_dates as string[])?.join(", "))}</td>
+                    <td className="p-4">
+                      {u.is_available === true ? <span className="text-green-500 font-bold">YES</span> : u.is_available === false ? <span className="text-red-500 font-bold">NO</span> : <span className="text-neutral-500">TBD</span>}
+                    </td>
                     <td className="p-4">
                       <a href={String(u.payment_receipt_url)} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">View</a>
                     </td>
@@ -178,6 +187,8 @@ export default function AdminDashboard() {
                 className="w-full bg-neutral-950 border border-neutral-700 p-2 rounded text-white"
               >
                 <option value="RSVP_OPEN">Phase 1: RSVP_OPEN</option>
+                <option value="DATE_CONFIRMATION">Phase 1.5: DATE_CONFIRMATION</option>
+                <option value="PAYMENT">Phase 2: PAYMENT</option>
                 <option value="WAITING_ROOM">Intermission: WAITING_ROOM</option>
                 <option value="SEAT_SELECTION">Phase 2: SEAT_SELECTION</option>
                 <option value="GAME_DAY">Phase 3: GAME_DAY</option>
@@ -239,12 +250,13 @@ export default function AdminDashboard() {
                 <div className="flex gap-2">
                   {seats.filter(s => s.row_label === row).map(seat => (
                     <div key={String(seat.id)} className="relative group">
-                      <div className={`w-12 h-12 flex items-center justify-center rounded border ${seat.status === 'unavailable' ? 'bg-neutral-950 border-neutral-800 text-neutral-700' : seat.status === 'occupied' ? 'bg-blue-900/50 border-blue-500/50 text-blue-300' : 'bg-green-950/30 border-green-500/50 text-green-500'}`}>
+                      <div className={`w-12 h-12 flex items-center justify-center rounded border ${seat.status === "space" ? "bg-transparent border-dashed border-neutral-800 text-transparent" : seat.status === "unavailable" ? "bg-neutral-950 border-neutral-800 text-neutral-700" : seat.status === "occupied" ? "bg-blue-900/50 border-blue-500/50 text-blue-300" : "bg-green-950/30 border-green-500/50 text-green-500"}`}>
                         {String(seat.seat_number)}
                       </div>
 
                       {/* Admin Tools Hover */}
                       <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black border border-neutral-700 rounded p-1 hidden group-hover:flex gap-1 z-10 shadow-xl">
+                         <button onClick={() => toggleSeatStatus(String(seat.id), String(seat.status), "space")} className="p-1 hover:bg-neutral-800 rounded text-xs whitespace-nowrap text-blue-400" title="Make Space">Space</button>
                          <button onClick={() => toggleSeatStatus(String(seat.id), String(seat.status))} className="p-1 hover:bg-neutral-800 rounded text-xs whitespace-nowrap" title="Toggle Available/Unavailable">
                            {seat.status === 'unavailable' ? 'Enable' : 'Disable'}
                          </button>
