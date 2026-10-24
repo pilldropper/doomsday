@@ -42,16 +42,16 @@ export default function Login() {
           toast.success("Logged in successfully!");
         }
       } else {
-        if (!avatarFile) {
-          toast.error("Please upload an avatar.");
-          return;
-        }
 
-        const avatarExt = avatarFile.name.split(".").pop();
-        const avatarPath = `${Date.now()}-${Math.random().toString(36).substring(7)}.${avatarExt}`;
-        const { error: avatarError } = await supabase.storage.from("avatars").upload(avatarPath, avatarFile);
-        if (avatarError) throw avatarError;
-        const avatarUrl = supabase.storage.from("avatars").getPublicUrl(avatarPath).data.publicUrl;
+
+        let avatarUrl = "";
+        if (avatarFile) {
+          const avatarExt = avatarFile.name.split(".").pop();
+          const avatarPath = `${Date.now()}-${Math.random().toString(36).substring(7)}.${avatarExt}`;
+          const { error: avatarError } = await supabase.storage.from("avatars").upload(avatarPath, avatarFile);
+          if (avatarError) throw avatarError;
+          avatarUrl = supabase.storage.from("avatars").getPublicUrl(avatarPath).data.publicUrl;
+        }
 
         const { data: newUser, error } = await supabase
           .from("users")
