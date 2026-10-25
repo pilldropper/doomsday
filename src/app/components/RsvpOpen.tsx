@@ -14,7 +14,7 @@ const DEFAULT_VOTING_OPTIONS = [
   "Too early, let's settle this closer to December.",
 ];
 
-type SquadVoter = {
+type kirigtaVoter = {
   id: string;
   name: string;
   avatar_url: string;
@@ -71,7 +71,7 @@ export default function RsvpOpen({
   const [selectedDates, setSelectedDates] = useState<string[]>(
     user?.voted_dates || []
   );
-  const [squadVoters, setSquadVoters] = useState<SquadVoter[]>([]);
+  const [kirigtaVoters, setkirigtaVoters] = useState<kirigtaVoter[]>([]);
 
   useEffect(() => {
     if (user?.voted_dates) {
@@ -106,7 +106,7 @@ export default function RsvpOpen({
         .from("users")
         .select("id, name, avatar_url, voted_dates")
         .order("created_at", { ascending: true });
-      if (data) setSquadVoters(data as SquadVoter[]);
+      if (data) setkirigtaVoters(data as kirigtaVoter[]);
     }
     fetchVoters();
 
@@ -170,7 +170,7 @@ export default function RsvpOpen({
     0,
     ...votingOptions.map(
       (opt) =>
-        squadVoters.filter(
+        kirigtaVoters.filter(
           (v) => Array.isArray(v.voted_dates) && v.voted_dates.includes(opt)
         ).length
     )
@@ -186,8 +186,22 @@ export default function RsvpOpen({
           When are we watching Doomsday?
         </h1>
         <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
-          Holiday cinema blocks sell out fast. Select every date &amp; showtime
-          you can make so we can lock in a single block of seats together.
+          Nag start na an selling han tickets for doomsday, and damo gihap itun it ma book. Hassle it pag palit hin ticket during the day of screening kay hilaba itun it pila. 
+        </p>
+        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
+          So, pili kita hin mga date nga available kita, and we’ll lock in the final date based on the majority vote. After that, we'll confirm kun available tanan. And if g tanan, we'll proceed to collect funds for tickets. Kun goods na, I'll book the tickets and share the seat map for everyone to claim their seats. 
+        </p>
+        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
+          Pwede kamo gihap mag book on your own, I'll send the link nalang and the date so you can book yourself. But if you want to book through me, I'll handle the booking and send the receipt to everyone. Pero recommend ko mag book kamo on your own once the date is finalized.
+        </p>
+        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
+          Remember, tickets are non-refundable, so make sure you can attend before booking. If you can't make it, please let me know so we can adjust the headcount and avoid wasting tickets. Pero once pumalit na hin ticket, final na ito.
+        </p>
+        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
+          If you think too early pa, vote nala na ha december kita palit. I have a page that shows the available seats ha movieworld website para may idea kamo if need na pumalit or pwede pa maghulat.
+        </p>
+        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
+          As you can see below, mayda kita 4 steps para ma coordinate an ticketing and seating. Step 1 is to vote for the available slots, Step 2 is to confirm the final headcount, Step 3 is to chip in for the tickets, and Step 4 is to pick your seat on the live map. Ako it ma decide if ma proceed na kita to the next step based on the majority vote and availability.
         </p>
       </header>
 
@@ -238,8 +252,8 @@ export default function RsvpOpen({
           <div className="flex items-center gap-2 text-xs text-neutral-400">
             <Users className="w-3.5 h-3.5 text-green-400" />
             <span>
-              {squadVoters.filter((v) => (v.voted_dates?.length || 0) > 0).length}{" "}
-              / {squadVoters.length} voted
+              {kirigtaVoters.filter((v) => (v.voted_dates?.length || 0) > 0).length}{" "}
+              / {kirigtaVoters.length} voted
             </span>
           </div>
         </div>
@@ -247,7 +261,7 @@ export default function RsvpOpen({
         <div className="space-y-2.5">
           {votingOptions.map((option) => {
             const isChecked = selectedDates.includes(option);
-            const votersForOption = squadVoters.filter(
+            const votersForOption = kirigtaVoters.filter(
               (v) =>
                 Array.isArray(v.voted_dates) && v.voted_dates.includes(option)
             );

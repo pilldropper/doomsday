@@ -20,7 +20,7 @@ type RosterSeat = {
   status: string;
 };
 
-export default function SquadRosterTab() {
+export default function kirigtaRosterTab() {
   const [isOpen, setIsOpen] = useState(false);
   const [members, setMembers] = useState<RosterUser[]>([]);
   const [seats, setSeats] = useState<RosterSeat[]>([]);
@@ -117,7 +117,7 @@ export default function SquadRosterTab() {
         <span className="text-xs font-mono font-medium">
           {confirmedOrApproved.length > 0
             ? `${confirmedOrApproved.length} Going`
-            : `${activeComing.length} in Squad`}
+            : `${activeComing.length} in kirigta`}
         </span>
       </button>
 
@@ -154,7 +154,7 @@ export default function SquadRosterTab() {
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
           {members.length === 0 && (
             <div className="py-8 text-center text-xs text-neutral-600">
-              No squad members registered yet.
+              No kirigta members registered yet.
             </div>
           )}
 

@@ -92,7 +92,7 @@ export default function ChatBox() {
       {/* Floating Action Button */}
       <button
         onClick={() => setIsOpen(true)}
-        aria-label="Open Squad Comms"
+        aria-label="Open kirigta Comms"
         className={`fixed bottom-6 right-6 w-12 h-12 bg-green-600 hover:bg-green-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-green-950/50 transition-all ${
           isOpen ? "scale-0 opacity-0 pointer-events-none" : "scale-100 opacity-100"
         } z-40`}
@@ -117,7 +117,7 @@ export default function ChatBox() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 bg-neutral-950/90 rounded-t-2xl">
           <h3 className="text-xs font-mono uppercase tracking-wider font-bold text-green-400 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500" />
-            Squad Comms
+            kirigta Comms
           </h3>
           <button
             onClick={() => setIsOpen(false)}
@@ -131,12 +131,12 @@ export default function ChatBox() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 && (
             <div className="h-full flex items-center justify-center text-xs text-neutral-600 text-center px-6">
-              No messages yet. Say hello to the squad!
+              No messages yet. Say hello to the kirigta!
             </div>
           )}
           {messages.map((msg) => {
             const isMe = user?.id === msg.user_id;
-            const senderName = msg.users?.name || "Squad Member";
+            const senderName = msg.users?.name || "kirigta Member";
             return (
               <div
                 key={msg.id}
@@ -195,7 +195,7 @@ export default function ChatBox() {
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Message squad..."
+              placeholder="Message kirigta..."
               className="flex-1 bg-neutral-900 border border-neutral-800 rounded-full px-3.5 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-green-500/60"
             />
             <Button
@@ -209,7 +209,7 @@ export default function ChatBox() {
           </form>
         ) : (
           <div className="p-3 border-t border-neutral-800 bg-neutral-950/90 rounded-b-2xl text-center text-xs text-neutral-500">
-            Log in to chat with the squad
+            Log in to chat with the kirigta
           </div>
         )}
       </div>

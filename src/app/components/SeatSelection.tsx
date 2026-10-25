@@ -217,7 +217,7 @@ export default function SeatSelection() {
                       `}
                       title={
                         seat.status === "occupied"
-                          ? `Claimed by ${seat.users?.name || "Squad Member"}`
+                          ? `Claimed by ${seat.users?.name || "kirigta Member"}`
                           : seat.status === "available"
                           ? `Seat ${seat.row_label}${seat.seat_number} — Available`
                           : "Unavailable"

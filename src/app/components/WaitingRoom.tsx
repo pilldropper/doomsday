@@ -99,7 +99,7 @@ export default function WaitingRoom({
             </div>
           </div>
           <div className="bg-neutral-950/80 p-4 rounded-xl border border-neutral-800/80">
-            <div className="text-xs text-neutral-500 mb-1">Squad Cleared</div>
+            <div className="text-xs text-neutral-500 mb-1">kirigta Cleared</div>
             <div className="text-lg font-bold text-green-400 font-mono">
               {approvedCount} Approved
             </div>

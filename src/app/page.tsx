@@ -100,7 +100,7 @@ export default function Home() {
               <Film className="w-3.5 h-3.5" />
             </div>
             <span className="font-mono text-xs font-bold tracking-[0.2em] uppercase text-neutral-200">
-              Doomsday <span className="text-green-500">{"//"}</span> Squad
+              Doomsday <span className="text-green-500">{"//"}</span> kirigta
             </span>
           </div>
 

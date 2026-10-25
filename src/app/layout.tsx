@@ -3,12 +3,12 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { UserProvider } from '@/lib/UserContext'
 import ChatBox from './components/ChatBox'
-import SquadRosterTab from './components/SquadRosterTab'
+import kirigtaRosterTab from './components/kirigtaRosterTab'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Doomsday Squad Booking',
+  title: 'Doomsday kirigta Booking',
   description: 'Group movie ticketing for Avengers: Doomsday',
 }
 
@@ -22,7 +22,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <UserProvider>
           {children}
-          <SquadRosterTab />
+          <kirigtaRosterTab />
           <ChatBox />
         </UserProvider>
       </body>

@@ -56,7 +56,7 @@ export default function GameDay({
           <div className="space-y-4 flex-1">
             <div>
               <div className="text-[11px] font-mono uppercase tracking-widest text-green-400">
-                Avengers: Doomsday {"//"} Squad Block
+                Avengers: Doomsday {"//"} kirigta Block
               </div>
               <div className="text-xl sm:text-2xl font-bold text-white mt-0.5">
                 {user?.name}

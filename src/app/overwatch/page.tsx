@@ -284,7 +284,7 @@ export default function AdminDashboard() {
             href="/"
             className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-300"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to Squad Portal
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to kirigta Portal
           </Link>
         </div>
         <Toaster theme="dark" position="top-center" />
@@ -316,7 +316,7 @@ export default function AdminDashboard() {
             href="/"
             className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-300"
           >
-            <ArrowLeft className="w-3 h-3" /> View Live Squad Portal
+            <ArrowLeft className="w-3 h-3" /> View Live kirigta Portal
           </Link>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -345,7 +345,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4">
           <div className="text-[11px] text-neutral-500 uppercase">
-            Registered Squad
+            Registered kirigta
           </div>
           <div className="text-2xl font-bold text-white mt-1">
             {users.length}

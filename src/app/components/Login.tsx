@@ -103,7 +103,7 @@ export default function Login() {
         if (error) throw error;
 
         setUser(newUser);
-        toast.success("Registered! Welcome to the squad.");
+        toast.success("Registered! Welcome to the kirigta.");
       }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Authentication failed");
@@ -124,7 +124,7 @@ export default function Login() {
             Avengers: Doomsday
           </h1>
           <p className="text-sm text-neutral-400">
-            Squad block ticketing &amp; seat coordination
+            kirigta block ticketing &amp; seat coordination
           </p>
         </div>
 
@@ -141,7 +141,7 @@ export default function Login() {
                   : "text-neutral-400 hover:text-neutral-200"
               }`}
             >
-              Squad Login
+              kirigta Login
             </button>
             <button
               type="button"
@@ -152,7 +152,7 @@ export default function Login() {
                   : "text-neutral-400 hover:text-neutral-200"
               }`}
             >
-              Join the Squad
+              Join the kirigta
             </button>
           </div>
 
@@ -164,13 +164,13 @@ export default function Login() {
           >
             <div className="space-y-1.5">
               <Label htmlFor="name" className="text-xs text-neutral-400">
-                Callsign / Name
+                Name
               </Label>
               <Input
                 id="name"
                 {...register("name", { required: true })}
                 className="h-10 bg-neutral-950 border-neutral-800 focus-visible:border-green-500/60"
-                placeholder="e.g. Tony Stark"
+                placeholder="e.g. Josh"
               />
             </div>
 
@@ -249,8 +249,8 @@ export default function Login() {
               {isSubmitting
                 ? "Authenticating..."
                 : isLogin
-                ? "Enter Mission Control"
-                : "Create Squad Profile"}
+                ? "Login"
+                : "Create kirigta Profile"}
             </Button>
           </form>
         </div>

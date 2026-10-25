@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useUser } from "@/lib/UserContext";
 import { CheckCircle2, XCircle, Clock, CalendarCheck } from "lucide-react";
 
-type SquadMember = {
+type kirigtaMember = {
   id: string;
   name: string;
   avatar_url: string;
@@ -21,7 +21,7 @@ export default function DateConfirmation({
 }) {
   const { user, setUser } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [members, setMembers] = useState<SquadMember[]>([]);
+  const [members, setMembers] = useState<kirigtaMember[]>([]);
 
   useEffect(() => {
     async function fetchMembers() {
@@ -29,7 +29,7 @@ export default function DateConfirmation({
         .from("users")
         .select("id, name, avatar_url, is_available")
         .order("created_at", { ascending: true });
-      if (data) setMembers(data as SquadMember[]);
+      if (data) setMembers(data as kirigtaMember[]);
     }
     fetchMembers();
 
@@ -89,11 +89,10 @@ export default function DateConfirmation({
           <CalendarCheck className="w-3.5 h-3.5" /> Phase 2 {"//"} Final Headcount
         </div>
         <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-          Winning Showtime Selected
+          Majority Date Selected
         </h2>
         <p className="text-sm text-neutral-400">
-          Confirm whether you can make this exact date &amp; time before we open
-          the ticket pool.
+          Confirm whether you can make this exact date &amp; time before we start buying tickets.
         </p>
       </div>
 
@@ -133,7 +132,7 @@ export default function DateConfirmation({
               )}
             </div>
             <p className="text-xs text-neutral-400">
-              Waiting for the rest of the squad to confirm before payment opens.
+              Waiting for the rest of the kirigta to confirm before payment opens.
             </p>
             <div className="pt-2">
               <Button
@@ -171,10 +170,10 @@ export default function DateConfirmation({
         )}
       </div>
 
-      {/* Live Squad Roll Call */}
+      {/* Live kirigta Roll Call */}
       <div className="bg-neutral-900/40 border border-neutral-800/80 p-5 rounded-2xl space-y-4">
         <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-neutral-400">
-          <span>Squad Roll Call</span>
+          <span>kirigta Roll Call</span>
           <span className="text-green-400">{goingList.length} Confirmed In</span>
         </div>
 

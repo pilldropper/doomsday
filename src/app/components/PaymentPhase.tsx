@@ -155,7 +155,7 @@ export default function PaymentPhase({
           )}
         </div>
         <p className="text-sm sm:text-base text-neutral-400">
-          Transfer your ticket share to any account below and upload your
+          Send your ticket share to any account below and upload your
           receipt screenshot to unlock seat selection.
         </p>
       </header>
@@ -163,7 +163,7 @@ export default function PaymentPhase({
       {/* Live Progress Card */}
       <div className="bg-neutral-900/60 border border-neutral-800/90 p-5 sm:p-6 rounded-2xl space-y-4">
         <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider">
-          <span className="text-neutral-400">Squad Funding Pool</span>
+          <span className="text-neutral-400">kirigta Funding Pool</span>
           <span className="text-green-400 font-bold">
             {paidCount} / {totalCount} Submitted ({approvedCount} Verified)
           </span>
@@ -175,7 +175,7 @@ export default function PaymentPhase({
           />
         </div>
 
-        {/* Squad Status Chips */}
+        {/* kirigta Status Chips */}
         {activePool.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-2">
             {activePool.map((m) => {
@@ -360,16 +360,13 @@ export default function PaymentPhase({
       {/* Zero Flake Policy */}
       <section className="bg-red-950/20 border border-red-900/40 p-5 rounded-2xl text-red-200/80 text-xs leading-relaxed space-y-2">
         <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-wider">
-          <AlertTriangle className="w-4 h-4" /> The &ldquo;Zero Flake&rdquo;
-          Guarantee
+          <AlertTriangle className="w-4 h-4" /> Ibabalik ko as long as waray pa pumalit hin ticket
         </div>
         <p>
-          Transferred funds are held in a dedicated pool until we hit headcount.
-          If we don&apos;t have enough to book the block, everyone is refunded in
-          full.
+          The funds will be held until ready na pumalit hin tickets.
         </p>
         <p className="text-red-300 font-medium">
-          Once the cinema ticket block is purchased, tickets are strictly
+          Remember: Once pumalit na online, tickets are strictly
           non-refundable.
         </p>
       </section>
