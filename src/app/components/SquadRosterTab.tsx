@@ -20,7 +20,7 @@ type RosterSeat = {
   status: string;
 };
 
-export default function kirigtaRosterTab() {
+export default function KirigtaRosterTab() {
   const [isOpen, setIsOpen] = useState(false);
   const [members, setMembers] = useState<RosterUser[]>([]);
   const [seats, setSeats] = useState<RosterSeat[]>([]);

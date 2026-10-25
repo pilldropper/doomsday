@@ -178,31 +178,57 @@ export default function RsvpOpen({
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 space-y-10">
-      <header className="space-y-3">
+      <header className="space-y-4">
         <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-green-400">
           <Calendar className="w-3.5 h-3.5" /> Phase 1 {"//"} Schedule Poll
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
           When are we watching Doomsday?
         </h1>
-        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
-          Nag start na an selling han tickets for doomsday, and damo gihap itun it ma book. Hassle it pag palit hin ticket during the day of screening kay hilaba itun it pila. 
+        <p className="text-sm sm:text-base text-neutral-300 leading-relaxed">
+          Nag start na an ticket selling for Doomsday, and hassle an hilaba nga
+          pila ha screening day. Pili kita hin date based on majority vote—once
+          locked in ngan <span className="text-white font-medium">G tanan</span>,
+          we&apos;ll pool funds, book the block, and open the live seat map.
         </p>
-        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
-          So, pili kita hin mga date nga available kita, and we’ll lock in the final date based on the majority vote. After that, we'll confirm kun available tanan. And if g tanan, we'll proceed to collect funds for tickets. Kun goods na, I'll book the tickets and share the seat map for everyone to claim their seats. 
-        </p>
-        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
-          Pwede kamo gihap mag book on your own, I'll send the link nalang and the date so you can book yourself. But if you want to book through me, I'll handle the booking and send the receipt to everyone. Pero recommend ko mag book kamo on your own once the date is finalized.
-        </p>
-        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
-          Remember, tickets are non-refundable, so make sure you can attend before booking. If you can't make it, please let me know so we can adjust the headcount and avoid wasting tickets. Pero once pumalit na hin ticket, final na ito.
-        </p>
-        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
-          If you think too early pa, vote nala na ha december kita palit. I have a page that shows the available seats ha movieworld website para may idea kamo if need na pumalit or pwede pa maghulat.
-        </p>
-        <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
-          As you can see below, mayda kita 4 steps para ma coordinate an ticketing and seating. Step 1 is to vote for the available slots, Step 2 is to confirm the final headcount, Step 3 is to chip in for the tickets, and Step 4 is to pick your seat on the live map. Ako it ma decide if ma proceed na kita to the next step based on the majority vote and availability.
-        </p>
+
+        {/* Compact Briefing Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs leading-relaxed">
+          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-xl p-3.5 space-y-1">
+            <div className="font-mono text-[11px] font-bold uppercase tracking-wider text-green-400">
+              Self-Book or Pool
+            </div>
+            <p className="text-neutral-400">
+              Pwede kamo mag-book via me (with receipt &amp; seat map), or{" "}
+              <span className="text-neutral-200 font-medium">
+                book on your own
+              </span>{" "}
+              (recommended) once the date is final—I&apos;ll send the link.
+            </p>
+          </div>
+
+          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-xl p-3.5 space-y-1">
+            <div className="font-mono text-[11px] font-bold uppercase tracking-wider text-amber-400">
+              Non-Refundable
+            </div>
+            <p className="text-neutral-400">
+              Make sure available kamo before booking. Let me know early if you
+              can&apos;t make it so we can adjust headcount—once pumalit na,{" "}
+              <span className="text-neutral-200 font-medium">final na ito</span>.
+            </p>
+          </div>
+
+          <div className="bg-neutral-900/50 border border-neutral-800/80 rounded-xl p-3.5 space-y-1">
+            <div className="font-mono text-[11px] font-bold uppercase tracking-wider text-neutral-300">
+              Too Early Pa?
+            </div>
+            <p className="text-neutral-400">
+              Vote nala nga ha December kita palit. Check the MovieWorld seat
+              preview page anytime para may idea kamo kun puno na o pwede pa
+              maghulat.
+            </p>
+          </div>
+        </div>
       </header>
 
       {/* Minimal 4-Step Overview Pills */}
