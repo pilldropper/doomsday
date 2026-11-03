@@ -10,6 +10,7 @@ import { Armchair, CheckCircle2, Lock, Sparkles } from "lucide-react";
 
 type Seat = {
   id: string;
+  booking_schedule_id: string | null;
   row_label: string;
   seat_number: number;
   status: "available" | "occupied" | "unavailable" | "space";
@@ -20,6 +21,7 @@ type Seat = {
 export default function SeatSelection() {
   const { user } = useUser();
   const [seats, setSeats] = useState<Seat[]>([]);
+  const [scheduleLabel, setScheduleLabel] = useState("Selected showtime");
   const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
@@ -44,9 +46,35 @@ export default function SeatSelection() {
   }, []);
 
   async function fetchSeats() {
+    const { data: state } = await supabase
+      .from("app_state")
+      .select("booking_schedule_id")
+      .eq("id", 1)
+      .single();
+    const scheduleId = state?.booking_schedule_id as string | null;
+    if (!scheduleId) {
+      setSeats([]);
+      setScheduleLabel("No group booking showtime selected");
+      return;
+    }
+    if (scheduleId) {
+      const { data: schedule } = await supabase
+        .from("movie_schedules")
+        .select("venue, show_date, cinema, showtime")
+        .eq("id", scheduleId)
+        .maybeSingle();
+      if (schedule) {
+        setScheduleLabel(
+          `${schedule.venue} · ${schedule.show_date} · ${schedule.cinema} · ${String(
+            schedule.showtime
+          ).slice(0, 5)}`
+        );
+      }
+    }
     const { data, error } = await supabase
       .from("seats")
       .select("*, users(name, avatar_url)")
+      .eq("booking_schedule_id", scheduleId)
       .order("row_label", { ascending: true })
       .order("seat_number", { ascending: true });
 
@@ -132,6 +160,10 @@ export default function SeatSelection() {
           {myCurrentSeat && " Click another open seat anytime to switch."}
         </p>
       </header>
+
+      <div className="max-w-3xl mx-auto text-center text-xs font-mono text-green-400/80 uppercase tracking-wider">
+        Our group booking map · {scheduleLabel}
+      </div>
 
       {/* Personal Seat Status Bar */}
       <div className="max-w-xl mx-auto">

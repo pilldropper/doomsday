@@ -8,6 +8,7 @@ export type User = {
   name: string;
   avatar_url: string;
   voted_dates: string[];
+  voted_schedule_ids?: string[];
   payment_receipt_url: string;
   payment_status: string;
   password?: string;
