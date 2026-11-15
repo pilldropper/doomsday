@@ -25,6 +25,10 @@ export default function Login() {
   const { register, handleSubmit } = useForm();
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isPasswordRequest, setIsPasswordRequest] = useState(false);
+  const [requestName, setRequestName] = useState("");
+  const [requestedPassword, setRequestedPassword] = useState("");
+  const [isRequestingPassword, setIsRequestingPassword] = useState(false);
 
   useEffect(() => {
     if (!avatarFile) {
@@ -109,6 +113,43 @@ export default function Login() {
       toast.error(error instanceof Error ? error.message : "Authentication failed");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const submitPasswordRequest = async () => {
+    const cleanName = requestName.trim();
+    if (!cleanName || requestedPassword.length < 6) {
+      toast.error("Enter your username and a password of at least 6 characters.");
+      return;
+    }
+    setIsRequestingPassword(true);
+    try {
+      const { data: user, error: lookupError } = await supabase
+        .from("users")
+        .select("id")
+        .ilike("name", cleanName)
+        .maybeSingle();
+      if (lookupError || !user) {
+        toast.error("Username not found.");
+        return;
+      }
+      const { error } = await supabase
+        .from("users")
+        .update({
+          pending_password_hash: await hashPassword(requestedPassword),
+          password_change_requested_at: new Date().toISOString(),
+        })
+        .eq("id", user.id);
+      if (error) throw error;
+      setRequestedPassword("");
+      toast.success("Request sent. An admin will review your password change.");
+      setIsPasswordRequest(false);
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not send request"
+      );
+    } finally {
+      setIsRequestingPassword(false);
     }
   };
 
@@ -253,6 +294,59 @@ export default function Login() {
                 : "Create kirigta Profile"}
             </Button>
           </form>
+
+          {isLogin && (
+            <div className="border-t border-neutral-800 pt-4">
+              {!isPasswordRequest ? (
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordRequest(true)}
+                  className="text-xs text-neutral-400 hover:text-green-400"
+                >
+                  Forgot your password? Request a change
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-neutral-400">
+                    Enter your username and new password. An admin will be
+                    notified without seeing your password.
+                  </p>
+                  <Input
+                    value={requestName}
+                    onChange={(event) => setRequestName(event.target.value)}
+                    placeholder="Username"
+                    className="h-10 bg-neutral-950 border-neutral-800"
+                  />
+                  <Input
+                    type="password"
+                    value={requestedPassword}
+                    onChange={(event) =>
+                      setRequestedPassword(event.target.value)
+                    }
+                    placeholder="New password (at least 6 characters)"
+                    className="h-10 bg-neutral-950 border-neutral-800"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      onClick={submitPasswordRequest}
+                      disabled={isRequestingPassword}
+                      className="bg-green-600 hover:bg-green-500"
+                    >
+                      {isRequestingPassword ? "Sending..." : "Send Request"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsPasswordRequest(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

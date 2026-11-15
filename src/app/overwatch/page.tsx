@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ import {
   Clock,
   ArrowLeft,
   Shield,
-  RotateCcw,
 } from "lucide-react";
 
 type MovieSchedule = {
@@ -32,6 +31,34 @@ type MovieScheduleSeat = {
   row_label: string;
   seat_number: number;
   status: "available" | "reserved" | "space";
+};
+
+const HARD_CODED_SCHEDULES = [
+  ...["2026-12-16", "2026-12-17", "2026-12-18", "2026-12-19", "2026-12-20", "2026-12-21", "2026-12-22"].flatMap(
+    (show_date) => [
+      ...[
+        ["Cinema 1", "10:30"], ["Cinema 3", "12:00"], ["Cinema 1", "13:50"],
+        ["Cinema 4", "16:00"], ["Cinema 1", "17:10"], ["Cinema 2", "20:00"],
+        ["Cinema 1", "20:30"],
+      ].map(([cinema, showtime], index) => ({
+        id: `00000000-0000-4000-8000-${String(show_date.replaceAll("-", "") + index).slice(-12).padStart(12, "0")}`,
+        venue: "Robinsons North Tacloban", show_date, cinema, showtime,
+        booked_seats: 0, total_seats: 100,
+      })),
+      ...[
+        ["Cinema 4", "12:00"], ["Cinema 4", "15:30"], ["Cinema 4", "19:00"],
+      ].map(([cinema, showtime], index) => ({
+        id: `10000000-0000-4000-8000-${String(show_date.replaceAll("-", "") + index).slice(-12).padStart(12, "0")}`,
+        venue: "Robinsons Marasbaras", show_date, cinema, showtime,
+        booked_seats: 0, total_seats: 100,
+      })),
+    ]
+  ),
+];
+
+const BOOKING_LAYOUTS = {
+  "Robinsons North Tacloban": { rows: "ABCDEFGHIJKLMNO".split("") },
+  "Robinsons Marasbaras": { rows: "ABCDEFGHIJKLMNO".split("") },
 };
 
 function formatTime12h(time24: string): string {
@@ -100,9 +127,15 @@ export default function AdminDashboard() {
     useState("");
   const [selectedMovieMapScheduleId, setSelectedMovieMapScheduleId] =
     useState("");
+  const [seatMapMode, setSeatMapMode] = useState<"movieworld" | "group">(
+    "movieworld"
+  );
+  const [movieWorldUnavailable, setMovieWorldUnavailable] = useState<
+    Record<string, boolean>
+  >({});
   const [scheduleForm, setScheduleForm] = useState({
     venue: "Robinsons Marasbaras",
-    show_date: "2026-12-16",
+    show_date: "2026-12-19",
     cinema: "Cinema 4",
     showtime: "12:00",
     total_seats: 100,
@@ -139,18 +172,18 @@ export default function AdminDashboard() {
         .select("*, users(name)")
         .order("row_label")
         .order("seat_number"),
-        supabase
+      supabase
         .from("movie_schedules")
         .select(
           "id, venue, show_date, cinema, showtime, booked_seats, total_seats"
         )
         .order("show_date")
         .order("showtime"),
-        supabase
-          .from("movie_schedule_seats")
-          .select("id, schedule_id, row_label, seat_number, status")
-          .order("row_label")
-          .order("seat_number"),
+      supabase
+        .from("movie_schedule_seats")
+        .select("id, schedule_id, row_label, seat_number, status")
+        .order("row_label")
+        .order("seat_number"),
       ]);
 
     if (usersRes.data) setUsers(usersRes.data);
@@ -161,15 +194,39 @@ export default function AdminDashboard() {
       );
     }
     if (seatsRes.data) setSeats(seatsRes.data);
-    if (schedulesRes.data) {
+    if (schedulesRes.data?.length) {
       const loadedSchedules = schedulesRes.data as MovieSchedule[];
       setSchedules(loadedSchedules);
       setSelectedMovieMapScheduleId((current) =>
         current || loadedSchedules[0]?.id || ""
       );
+      setSelectedBookingScheduleId((current) =>
+        current || loadedSchedules[0]?.id || ""
+      );
+      if (movieSeatsRes.data) {
+        const loadedMovieSeats = movieSeatsRes.data as MovieScheduleSeat[];
+        setMovieScheduleSeats(loadedMovieSeats);
+        setMovieWorldUnavailable(
+          Object.fromEntries(
+            loadedMovieSeats
+              .filter((seat) => seat.status === "reserved")
+              .map((seat) => [
+                movieWorldSeatKey(
+                  seat.schedule_id,
+                  seat.row_label,
+                  seat.seat_number
+                ),
+                true,
+              ])
+          )
+        );
+      }
+    } else {
+      setSchedules(HARD_CODED_SCHEDULES);
+      setSelectedBookingScheduleId((current) =>
+        current || HARD_CODED_SCHEDULES[0].id
+      );
     }
-    if (movieSeatsRes.data)
-      setMovieScheduleSeats(movieSeatsRes.data as MovieScheduleSeat[]);
   };
 
   const toggleUserStatus = async (id: string, currentStatus: string) => {
@@ -183,6 +240,25 @@ export default function AdminDashboard() {
       toast.success(`Status updated to ${newStatus}`);
       fetchData();
     }
+  };
+
+  const approvePasswordChange = async (user: Record<string, unknown>) => {
+    const pendingHash = String(user.pending_password_hash || "");
+    if (!pendingHash) return;
+    const { error } = await supabase
+      .from("users")
+      .update({
+        password: pendingHash,
+        pending_password_hash: null,
+        password_change_requested_at: null,
+      })
+      .eq("id", String(user.id));
+    if (error) {
+      toast.error("Failed to approve password change");
+      return;
+    }
+    toast.success(`Password change approved for ${String(user.name)}`);
+    fetchData();
   };
 
   const deleteUser = async (id: string, name: string) => {
@@ -212,6 +288,11 @@ export default function AdminDashboard() {
   const addSchedule = async () => {
     if (!scheduleForm.venue || !scheduleForm.show_date || !scheduleForm.cinema) {
       toast.error("Venue, date, and cinema are required");
+      return;
+    }
+    const selectedDay = new Date(`${scheduleForm.show_date}T00:00:00`).getDay();
+    if (selectedDay !== 0 && selectedDay !== 6) {
+      toast.error("Voting schedules must be on a Saturday or Sunday");
       return;
     }
     const { error } = await supabase.from("movie_schedules").insert({
@@ -306,78 +387,85 @@ export default function AdminDashboard() {
     ).length;
   };
 
-  const [seatConfig, setSeatConfig] = useState({ rowLabel: "A", count: 12 });
-  const generateSeatsRow = async () => {
-    if (!selectedBookingScheduleId) {
-      toast.error("Select the group booking showtime first");
-      return;
-    }
-    const newSeats = [];
-    for (let i = 1; i <= seatConfig.count; i++) {
-      newSeats.push({
-        row_label: seatConfig.rowLabel,
-        seat_number: i,
-        status: "available",
-        booking_schedule_id: selectedBookingScheduleId,
-      });
-    }
-    const { error } = await supabase.from("seats").insert(newSeats);
-    if (error) toast.error("Failed to generate row");
-    else {
-      toast.success(`Row ${seatConfig.rowLabel} generated`);
-      fetchData();
-    }
-  };
-
-  const generateReferenceBookingMap = async () => {
-    if (!selectedBookingScheduleId) {
-      toast.error("Select the group booking showtime first");
-      return;
-    }
-    const rows = "ABCDEFGHIJKLMNO".split("");
-    const referenceSeats = rows.flatMap((rowLabel) =>
-      Array.from({ length: 19 }, (_, index) => {
-        const seatNumber = index + 1;
-        return {
-          booking_schedule_id: selectedBookingScheduleId,
-          row_label: rowLabel,
-          seat_number: seatNumber,
-          status: seatNumber === 6 || seatNumber === 14 ? "space" : "available",
-        };
-      })
+  const toggleBookedSeat = async (seat: Record<string, unknown>) => {
+    const nextStatus = String(seat.status) === "occupied" ? "available" : "occupied";
+    setSeats((current) =>
+      current.map((item) =>
+        String(item.id) === String(seat.id)
+          ? { ...item, status: nextStatus, user_id: null, users: null }
+          : item
+      )
     );
-    const { error } = await supabase
-      .from("seats")
-      .upsert(referenceSeats, {
-        onConflict: "booking_schedule_id,row_label,seat_number",
-        ignoreDuplicates: true,
+  };
+
+  const buildLocalSeatPreview = (schedule: MovieSchedule) => {
+    const layout =
+      BOOKING_LAYOUTS[schedule.venue as keyof typeof BOOKING_LAYOUTS] ||
+      BOOKING_LAYOUTS["Robinsons North Tacloban"];
+    return layout.rows.flatMap((row_label) => {
+      const lowerSection = row_label >= "I";
+      const seatCount = lowerSection ? 20 : 19;
+      const aislePositions = lowerSection ? [7, 14] : [6, 14];
+      return Array.from({ length: seatCount }, (_, index) => ({
+        id: `local-${schedule.id}-${row_label}-${index + 1}`,
+        booking_schedule_id: schedule.id,
+        row_label,
+        seat_number: index + 1,
+        status: aislePositions.includes(index + 1) ? "space" : "available",
+        user_id: null,
+        users: null,
+      }));
+    });
+  };
+
+  const movieWorldSeatKey = (
+    scheduleId: string,
+    rowLabel: string,
+    seatNumber: number
+  ) => `${scheduleId}:${rowLabel}:${seatNumber}`;
+
+  const toggleMovieWorldUnavailable = (seat: Record<string, unknown>) => {
+    const key = movieWorldSeatKey(
+      String(seat.booking_schedule_id),
+      String(seat.row_label),
+      Number(seat.seat_number)
+    );
+    setMovieWorldUnavailable((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
+    const nextStatus = movieWorldUnavailable[key] ? "available" : "reserved";
+    supabase
+      .from("movie_schedule_seats")
+      .upsert(
+        {
+          schedule_id: String(seat.booking_schedule_id),
+          row_label: String(seat.row_label),
+          seat_number: Number(seat.seat_number),
+          status: nextStatus,
+        },
+        { onConflict: "schedule_id,row_label,seat_number" }
+      )
+      .then(({ error }) => {
+        if (error) toast.error("Failed to save MovieWorld availability");
       });
-    if (error) toast.error("Failed to generate reference seat map");
-    else {
-      toast.success("Reference booking map generated");
-      fetchData();
-    }
-  };
-
-  const deleteSeat = async (id: string) => {
-    await supabase.from("seats").delete().eq("id", id);
-    fetchData();
-  };
-
-  const deleteRow = async (rowLabel: string) => {
-    await supabase
-      .from("seats")
-      .delete()
-      .eq("row_label", rowLabel)
-      .eq("booking_schedule_id", selectedBookingScheduleId);
-    toast.success(`Row ${rowLabel} deleted`);
-    fetchData();
   };
 
   const updateBookingSchedule = async (scheduleId: string) => {
     setSelectedBookingScheduleId(scheduleId);
     await updateAppState("booking_schedule_id", scheduleId || null);
+    if (!scheduleId) return;
+    const schedule = schedules.find((item) => item.id === scheduleId);
+    if (!schedule) return;
+    setSeats(buildLocalSeatPreview(schedule));
   };
+
+  useEffect(() => {
+    const schedule = schedules.find(
+      (item) => item.id === selectedBookingScheduleId
+    );
+    if (schedule) setSeats(buildLocalSeatPreview(schedule));
+  }, [selectedBookingScheduleId, schedules]);
 
   const toggleMovieScheduleSeat = async (seat: MovieScheduleSeat) => {
     const nextStatus =
@@ -445,29 +533,6 @@ export default function AdminDashboard() {
       toast.success("MovieWorld seat map generated");
       fetchData();
     }
-  };
-
-  const toggleSeatStatus = async (
-    id: string,
-    currentStatus: string,
-    action?: string
-  ) => {
-    let newStatus = "available";
-    if (action === "space") {
-      newStatus = currentStatus === "space" ? "available" : "space";
-    } else if (action === "free") {
-      await supabase
-        .from("seats")
-        .update({ status: "available", user_id: null })
-        .eq("id", id);
-      fetchData();
-      return;
-    } else {
-      newStatus =
-        currentStatus === "unavailable" ? "available" : "unavailable";
-    }
-    await supabase.from("seats").update({ status: newStatus }).eq("id", id);
-    fetchData();
   };
 
   if (!isAuthenticated) {
@@ -558,12 +623,6 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab("seats")}
           >
             Seat Map Builder
-          </Button>
-          <Button
-            variant={activeTab === "schedules" ? "default" : "outline"}
-            onClick={() => setActiveTab("schedules")}
-          >
-            MovieWorld Schedules
           </Button>
         </div>
       </header>
@@ -704,6 +763,16 @@ export default function AdminDashboard() {
                           ? "Set Pending"
                           : "Approve"}
                       </Button>
+                      {u.pending_password_hash ? (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => approvePasswordChange(u)}
+                          className="border-amber-500/40 text-amber-300"
+                        >
+                          Approve Password
+                        </Button>
+                      ) : null}
                       <Button
                         size="icon-xs"
                         variant="destructive"
@@ -1060,7 +1129,7 @@ export default function AdminDashboard() {
                     {schedule.venue} · {schedule.cinema}
                   </div>
                   <div className="text-xs text-neutral-500 mt-1">
-                    {schedule.show_date} at {schedule.showtime.slice(0, 5)}
+                    {schedule.show_date} at {formatTime12h(schedule.showtime)}
                   </div>
                 </div>
                 <label className="flex items-center gap-2 text-xs text-neutral-400">
@@ -1114,7 +1183,7 @@ export default function AdminDashboard() {
               {schedules.map((schedule) => (
                 <option key={schedule.id} value={schedule.id}>
                   {schedule.venue} · {schedule.show_date} · {schedule.cinema} ·{" "}
-                  {schedule.showtime.slice(0, 5)}
+                  {formatTime12h(schedule.showtime)}
                 </option>
               ))}
             </select>
@@ -1199,7 +1268,7 @@ export default function AdminDashboard() {
               {schedules.map((schedule) => (
                 <option key={schedule.id} value={schedule.id}>
                   {schedule.venue} · {schedule.show_date} · {schedule.cinema} ·{" "}
-                  {schedule.showtime.slice(0, 5)}
+                  {formatTime12h(schedule.showtime)}
                 </option>
               ))}
             </select>
@@ -1208,53 +1277,32 @@ export default function AdminDashboard() {
               MovieWorld availability snapshot.
             </p>
           </div>
-          <div className="bg-neutral-900/70 p-6 rounded-xl border border-neutral-800 flex flex-wrap items-end gap-4 max-w-xl">
-            <div className="space-y-1.5 flex-1 min-w-[100px]">
-              <label className="text-xs text-neutral-400 uppercase">
-                Row Label
-              </label>
-              <Input
-                value={seatConfig.rowLabel}
-                onChange={(e) =>
-                  setSeatConfig({
-                    ...seatConfig,
-                    rowLabel: e.target.value.toUpperCase(),
-                  })
-                }
-                className="bg-neutral-950 border-neutral-800"
-                maxLength={2}
-              />
-            </div>
-            <div className="space-y-1.5 flex-1 min-w-[100px]">
-              <label className="text-xs text-neutral-400 uppercase">
-                Seat Count
-              </label>
-              <Input
-                type="number"
-                value={seatConfig.count}
-                onChange={(e) =>
-                  setSeatConfig({
-                    ...seatConfig,
-                    count: parseInt(e.target.value) || 1,
-                  })
-                }
-                className="bg-neutral-950 border-neutral-800"
-                min={1}
-              />
-            </div>
+          <div className="bg-neutral-900/70 p-5 rounded-xl border border-neutral-800 max-w-xl">
+            <p className="text-xs text-neutral-400">
+              These maps are separate. MovieWorld availability is used by the
+              public preview; our booking map is used for group seat claims.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
             <Button
-              onClick={generateSeatsRow}
-              className="bg-green-600 hover:bg-green-500 text-white"
+              variant={seatMapMode === "movieworld" ? "default" : "outline"}
+              onClick={() => setSeatMapMode("movieworld")}
             >
-              <Plus className="w-4 h-4 mr-1" /> Generate Row
+              MovieWorld Availability
             </Button>
             <Button
-              onClick={generateReferenceBookingMap}
-              variant="outline"
-              className="border-green-500/40 text-green-300"
+              variant={seatMapMode === "group" ? "default" : "outline"}
+              onClick={() => setSeatMapMode("group")}
             >
-              Generate Reference Map
+              Our Booked Seats
             </Button>
+          </div>
+
+          <div className="text-xs text-neutral-500">
+            {seatMapMode === "movieworld"
+              ? "Click a seat to mark it unavailable on MovieWorld."
+              : "Click a seat to mark it booked by someone in our group."}
           </div>
 
           <div className="space-y-4">
@@ -1289,73 +1337,53 @@ export default function AdminDashboard() {
                         )
                         .map((seat) => (
                           <div key={String(seat.id)} className="relative group">
+                            {(() => {
+                              const movieWorldKey = movieWorldSeatKey(
+                                String(seat.booking_schedule_id),
+                                String(seat.row_label),
+                                Number(seat.seat_number)
+                              );
+                              const isMovieWorldUnavailable =
+                                movieWorldUnavailable[movieWorldKey];
+                              const isUnavailable =
+                                seat.status === "unavailable" ||
+                                isMovieWorldUnavailable;
+                              const isBooked =
+                                seatMapMode === "group" &&
+                                seat.status === "occupied";
+                              return (
                             <div
+                              onClick={() =>
+                                seatMapMode === "movieworld"
+                                  ? toggleMovieWorldUnavailable(seat)
+                                  : toggleBookedSeat(seat)
+                              }
+                              title={
+                                seatMapMode === "movieworld"
+                                  ? isUnavailable
+                                    ? "Click to mark available on MovieWorld"
+                                    : "Click to mark unavailable on MovieWorld"
+                                  : isBooked
+                                  ? "Click to mark available for our group"
+                                  : "Click to mark booked for our group"
+                              }
                               className={`w-12 h-12 flex items-center justify-center rounded-lg border text-xs font-bold ${
                                 seat.status === "space"
                                   ? "bg-transparent border-dashed border-neutral-800 text-neutral-700"
-                                  : seat.status === "unavailable"
+                                  : isUnavailable
                                   ? "bg-neutral-950 border-neutral-800 text-neutral-700"
-                                  : seat.status === "occupied"
+                                  : isBooked
                                   ? "bg-blue-950/60 border-blue-500/50 text-blue-300"
                                   : "bg-green-950/30 border-green-500/40 text-green-400"
-                              }`}
+                              } cursor-pointer`}
                             >
                               {String(seat.seat_number)}
                             </div>
+                              );
+                            })()}
 
-                            {/* Admin Tools Hover */}
-                            <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-neutral-950 border border-neutral-700 rounded-md p-1 hidden group-hover:flex gap-1 z-10 shadow-xl">
-                              <button
-                                onClick={() =>
-                                  toggleSeatStatus(
-                                    String(seat.id),
-                                    String(seat.status),
-                                    "space"
-                                  )
-                                }
-                                className="px-1.5 py-0.5 hover:bg-neutral-800 rounded text-[10px] whitespace-nowrap text-blue-400"
-                                title="Toggle Aisle Space"
-                              >
-                                Aisle
-                              </button>
-                              <button
-                                onClick={() =>
-                                  toggleSeatStatus(
-                                    String(seat.id),
-                                    String(seat.status)
-                                  )
-                                }
-                                className="px-1.5 py-0.5 hover:bg-neutral-800 rounded text-[10px] whitespace-nowrap"
-                                title="Toggle Available/Unavailable"
-                              >
-                                {seat.status === "unavailable"
-                                  ? "Enable"
-                                  : "Block"}
-                              </button>
-                              {seat.status === "occupied" && (
-                                <button
-                                  onClick={() =>
-                                    toggleSeatStatus(
-                                      String(seat.id),
-                                      String(seat.status),
-                                      "free"
-                                    )
-                                  }
-                                  className="px-1.5 py-0.5 hover:bg-neutral-800 rounded text-[10px] whitespace-nowrap text-amber-400"
-                                  title="Unassign Seat"
-                                >
-                                  <RotateCcw className="w-3 h-3" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => deleteSeat(String(seat.id))}
-                                className="p-1 hover:bg-red-900/50 text-red-400 rounded"
-                                title="Delete Seat"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                            {seat.status === "occupied" && (
+                            {seatMapMode === "group" &&
+                              seat.status === "occupied" && (
                               <div className="text-[10px] text-center mt-1 text-neutral-400 truncate w-12">
                                 {String(
                                   (seat.users as Record<string, unknown>)?.name
@@ -1367,14 +1395,6 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <Button
-                    size="xs"
-                    variant="destructive"
-                    onClick={() => deleteRow(String(row))}
-                    className="shrink-0"
-                  >
-                    <Trash2 className="w-3 h-3 mr-1" /> Delete Row
-                  </Button>
                 </div>
               ))}
           </div>

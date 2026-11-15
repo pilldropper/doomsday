@@ -18,6 +18,15 @@ type Seat = {
   users?: { name: string; avatar_url: string };
 };
 
+function formatTime12h(time24: string): string {
+  const [hourText, minute] = time24.slice(0, 5).split(":");
+  let hour = Number(hourText);
+  if (!Number.isFinite(hour) || !minute) return time24;
+  const period = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12 || 12;
+  return `${hour}:${minute} ${period}`;
+}
+
 export default function SeatSelection() {
   const { user } = useUser();
   const [seats, setSeats] = useState<Seat[]>([]);
@@ -66,7 +75,7 @@ export default function SeatSelection() {
       if (schedule) {
         setScheduleLabel(
           `${schedule.venue} · ${schedule.show_date} · ${schedule.cinema} · ${String(
-            schedule.showtime
+            formatTime12h(String(schedule.showtime))
           ).slice(0, 5)}`
         );
       }

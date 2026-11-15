@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS voted_schedule_ids UUID[] DEFAULT '{}';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pending_password_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_change_requested_at TIMESTAMP WITH TIME ZONE;
 
 -- MovieWorld showtimes and manually maintained public availability
 CREATE TABLE IF NOT EXISTS movie_schedules (
@@ -90,38 +92,62 @@ ALTER TABLE movie_schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movie_schedule_seats ENABLE ROW LEVEL SECURITY;
 
 -- App State Policies
+DROP POLICY IF EXISTS "Public read app_state" ON app_state;
+DROP POLICY IF EXISTS "Public update app_state" ON app_state;
 CREATE POLICY "Public read app_state" ON app_state FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Public update app_state" ON app_state FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- Users Policies
+DROP POLICY IF EXISTS "Anyone can insert users" ON users;
+DROP POLICY IF EXISTS "Public read users" ON users;
+DROP POLICY IF EXISTS "Anyone can update users" ON users;
+DROP POLICY IF EXISTS "Anyone can delete users" ON users;
 CREATE POLICY "Anyone can insert users" ON users FOR INSERT TO anon, authenticated WITH CHECK (true);
 CREATE POLICY "Public read users" ON users FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Anyone can update users" ON users FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Anyone can delete users" ON users FOR DELETE TO anon, authenticated USING (true);
 
 -- Seats Policies
+DROP POLICY IF EXISTS "Public read seats" ON seats;
+DROP POLICY IF EXISTS "Anyone can insert seats" ON seats;
+DROP POLICY IF EXISTS "Anyone can update seats" ON seats;
+DROP POLICY IF EXISTS "Anyone can delete seats" ON seats;
 CREATE POLICY "Public read seats" ON seats FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Anyone can insert seats" ON seats FOR INSERT TO anon, authenticated WITH CHECK (true);
 CREATE POLICY "Anyone can update seats" ON seats FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Anyone can delete seats" ON seats FOR DELETE TO anon, authenticated USING (true);
 
 -- Chat Policies
+DROP POLICY IF EXISTS "Public read chat_messages" ON chat_messages;
+DROP POLICY IF EXISTS "Anyone can insert chat_messages" ON chat_messages;
 CREATE POLICY "Public read chat_messages" ON chat_messages FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Anyone can insert chat_messages" ON chat_messages FOR INSERT TO anon, authenticated WITH CHECK (true);
 
 -- Movie schedule policies
+DROP POLICY IF EXISTS "Public read movie_schedules" ON movie_schedules;
+DROP POLICY IF EXISTS "Anyone can insert movie_schedules" ON movie_schedules;
+DROP POLICY IF EXISTS "Anyone can update movie_schedules" ON movie_schedules;
+DROP POLICY IF EXISTS "Anyone can delete movie_schedules" ON movie_schedules;
 CREATE POLICY "Public read movie_schedules" ON movie_schedules FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Anyone can insert movie_schedules" ON movie_schedules FOR INSERT TO anon, authenticated WITH CHECK (true);
 CREATE POLICY "Anyone can update movie_schedules" ON movie_schedules FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Anyone can delete movie_schedules" ON movie_schedules FOR DELETE TO anon, authenticated USING (true);
 
 -- Movie schedule seat snapshot policies
+DROP POLICY IF EXISTS "Public read movie_schedule_seats" ON movie_schedule_seats;
+DROP POLICY IF EXISTS "Anyone can insert movie_schedule_seats" ON movie_schedule_seats;
+DROP POLICY IF EXISTS "Anyone can update movie_schedule_seats" ON movie_schedule_seats;
+DROP POLICY IF EXISTS "Anyone can delete movie_schedule_seats" ON movie_schedule_seats;
 CREATE POLICY "Public read movie_schedule_seats" ON movie_schedule_seats FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Anyone can insert movie_schedule_seats" ON movie_schedule_seats FOR INSERT TO anon, authenticated WITH CHECK (true);
 CREATE POLICY "Anyone can update movie_schedule_seats" ON movie_schedule_seats FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Anyone can delete movie_schedule_seats" ON movie_schedule_seats FOR DELETE TO anon, authenticated USING (true);
 
 -- Storage Policies
+DROP POLICY IF EXISTS "Public Access avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can upload avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Public read receipts" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can upload receipts" ON storage.objects;
 CREATE POLICY "Public Access avatars" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
 CREATE POLICY "Anyone can upload avatars" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars');
 
@@ -134,7 +160,34 @@ VALUES (1, 'RSVP_OPEN', 'TBD')
 ON CONFLICT (id) DO NOTHING;
 
 -- Enable Realtime for live updates
-ALTER PUBLICATION supabase_realtime ADD TABLE app_state, users, seats, chat_messages, movie_schedules, movie_schedule_seats;
+DO $$
+DECLARE
+  table_name TEXT;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'app_state',
+    'users',
+    'seats',
+    'chat_messages',
+    'movie_schedules',
+    'movie_schedule_seats'
+  ]
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = table_name
+    ) THEN
+      EXECUTE format(
+        'ALTER PUBLICATION supabase_realtime ADD TABLE public.%I',
+        table_name
+      );
+    END IF;
+  END LOOP;
+END
+$$;
 
 -- Initial MovieWorld schedule options from the supplied listings.
 INSERT INTO movie_schedules (venue, show_date, cinema, showtime)

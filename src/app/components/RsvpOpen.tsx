@@ -8,10 +8,47 @@ import { useUser } from "@/lib/UserContext";
 import { Calendar, Check, Clock, MapPin, Users } from "lucide-react";
 
 const DEFAULT_VOTING_OPTIONS = [
-  "2026-12-18",
   "2026-12-19",
   "2026-12-20",
-  "Too early, let's settle this closer to December.",
+];
+const TOO_EARLY_OPTION = "Too early to decide";
+const UNAVAILABLE_OPTION = "I'm not available on all these dates";
+const SPECIAL_VOTING_OPTIONS = [TOO_EARLY_OPTION, UNAVAILABLE_OPTION];
+const FALLBACK_MOVIE_SCHEDULES: MovieSchedule[] = [
+  ...["2026-12-16", "2026-12-17", "2026-12-18", "2026-12-19", "2026-12-20", "2026-12-21", "2026-12-22"].flatMap(
+    (show_date) => [
+      ...[
+        ["Cinema 1", "10:30"],
+        ["Cinema 3", "12:00"],
+        ["Cinema 1", "13:50"],
+        ["Cinema 4", "16:00"],
+        ["Cinema 1", "17:10"],
+        ["Cinema 2", "20:00"],
+        ["Cinema 1", "20:30"],
+      ].map(([cinema, showtime], index) => ({
+        id: `fallback-north-${show_date}-${index}`,
+        venue: "Robinsons North Tacloban",
+        show_date,
+        cinema,
+        showtime,
+        booked_seats: 0,
+        total_seats: 100,
+      })),
+      ...[
+        ["Cinema 4", "12:00"],
+        ["Cinema 4", "15:30"],
+        ["Cinema 4", "19:00"],
+      ].map(([cinema, showtime], index) => ({
+        id: `fallback-marasbaras-${show_date}-${index}`,
+        venue: "Robinsons Marasbaras",
+        show_date,
+        cinema,
+        showtime,
+        booked_seats: 0,
+        total_seats: 100,
+      })),
+    ]
+  ),
 ];
 
 type kirigtaVoter = {
@@ -40,6 +77,23 @@ type MovieScheduleSeat = {
   status: "available" | "reserved" | "space";
 };
 
+function buildSeatPreview(scheduleId: string): MovieScheduleSeat[] {
+  return "ABCDEFGHIJKLMNO".split("").flatMap((rowLabel) => {
+    const lowerSection = rowLabel >= "I";
+    const seatCount = lowerSection ? 20 : 19;
+    const aislePositions = lowerSection ? [7, 14] : [6, 14];
+    return Array.from({ length: seatCount }, (_, index) => ({
+      id: `preview-${scheduleId}-${rowLabel}-${index + 1}`,
+      schedule_id: scheduleId,
+      row_label: rowLabel,
+      seat_number: index + 1,
+      status: aislePositions.includes(index + 1)
+        ? ("space" as const)
+        : ("available" as const),
+    }));
+  });
+}
+
 function formatSchedule(schedule: MovieSchedule) {
   const date = new Date(`${schedule.show_date}T00:00:00`);
   const dateLabel = date.toLocaleDateString("en-US", {
@@ -53,6 +107,35 @@ function formatSchedule(schedule: MovieSchedule) {
   const period = hour >= 12 ? "PM" : "AM";
   hour = hour % 12 || 12;
   return `${dateLabel} • ${schedule.cinema} • ${hour}:${minute} ${period}`;
+}
+
+function formatTime12h(time24: string): string {
+  const [hourText, minute] = time24.slice(0, 5).split(":");
+  let hour = Number(hourText);
+  if (!Number.isFinite(hour) || !minute) return time24;
+  const period = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12 || 12;
+  return `${hour}:${minute} ${period}`;
+}
+
+
+function isWeekendDate(dateValue: string): boolean {
+  const date = new Date(`${dateValue}T00:00:00`);
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function isEligibleVotingSchedule(schedule: MovieSchedule): boolean {
+  return Boolean(schedule.show_date && schedule.showtime);
+}
+
+function formatDateOption(dateValue: string): string {
+  return new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatSlotDisplay(slot: string): {
@@ -107,9 +190,14 @@ export default function RsvpOpen({
   );
   const [kirigtaVoters, setkirigtaVoters] = useState<kirigtaVoter[]>([]);
   const [schedules, setSchedules] = useState<MovieSchedule[]>([]);
+  const [configuredScheduleIds, setConfiguredScheduleIds] = useState<
+    Set<string>
+  >(new Set());
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>(
     user?.voted_schedule_ids || []
   );
+  const [selectedVotingDate, setSelectedVotingDate] = useState("");
+  const [selectedSpecialOption, setSelectedSpecialOption] = useState("");
   const [previewVenue, setPreviewVenue] = useState("");
   const [previewDate, setPreviewDate] = useState("");
   const [movieMapScheduleId, setMovieMapScheduleId] = useState("");
@@ -118,6 +206,11 @@ export default function RsvpOpen({
   useEffect(() => {
     if (user?.voted_dates) {
       setSelectedDates(user.voted_dates);
+      setSelectedSpecialOption(
+        user.voted_dates.find((option) =>
+          SPECIAL_VOTING_OPTIONS.includes(option)
+        ) || ""
+      );
     }
   }, [user?.voted_dates]);
 
@@ -139,9 +232,25 @@ export default function RsvpOpen({
         return;
       }
       const loaded = (data || []) as MovieSchedule[];
+      const { data: configuredSeats, error: seatError } = await supabase
+        .from("movie_schedule_seats")
+        .select("schedule_id, status")
+        .eq("status", "reserved");
+      if (seatError) {
+        console.error("Error fetching configured MovieWorld seats:", seatError);
+        return;
+      }
+      const configuredScheduleIds = new Set(
+        (configuredSeats || []).map((seat) => seat.schedule_id)
+      );
       setSchedules(loaded);
-      setPreviewVenue((current) => current || loaded[0]?.venue || "");
-      setPreviewDate((current) => current || loaded[0]?.show_date || "");
+      setConfiguredScheduleIds(configuredScheduleIds);
+      setPreviewVenue(
+        (current) => current || loaded[0]?.venue || ""
+      );
+      setPreviewDate(
+        (current) => current || loaded[0]?.show_date || ""
+      );
     }
     fetchSchedules();
 
@@ -153,14 +262,24 @@ export default function RsvpOpen({
         fetchSchedules
       )
       .subscribe();
+    const seatChannel = supabase
+      .channel("public:movie_schedule_seats:rsvp")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "movie_schedule_seats" },
+        fetchSchedules
+      )
+      .subscribe();
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(seatChannel);
     };
   }, []);
 
   useEffect(() => {
     const visibleSchedules = schedules.filter(
       (schedule) =>
+        configuredScheduleIds.has(schedule.id) &&
         schedule.venue === previewVenue &&
         schedule.show_date ===
           (previewDate ||
@@ -193,7 +312,20 @@ export default function RsvpOpen({
         console.error("Error fetching MovieWorld seat map:", error);
         return;
       }
-      setMovieMapSeats((data || []) as MovieScheduleSeat[]);
+      const configuredSeats = (data || []) as MovieScheduleSeat[];
+      const configuredByPosition = new Map(
+        configuredSeats.map((seat) => [
+          `${seat.row_label}:${seat.seat_number}`,
+          seat,
+        ])
+      );
+      setMovieMapSeats(
+        buildSeatPreview(scheduleId).map(
+          (seat) =>
+            configuredByPosition.get(`${seat.row_label}:${seat.seat_number}`) ||
+            seat
+        )
+      );
     }
     fetchMovieMap();
     const channel = supabase
@@ -212,7 +344,13 @@ export default function RsvpOpen({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [movieMapScheduleId, previewDate, previewVenue, schedules]);
+  }, [
+    movieMapScheduleId,
+    previewDate,
+    previewVenue,
+    schedules,
+    configuredScheduleIds,
+  ]);
 
   useEffect(() => {
     if (Array.isArray(appState?.voting_dates)) {
@@ -269,27 +407,47 @@ export default function RsvpOpen({
 
   const onSubmit = async () => {
     if (!user) return;
-    if (schedules.length > 0 && selectedScheduleIds.length === 0) {
-      toast.error("Please select at least one venue and showtime.");
+    if (
+      weekendSchedules.length > 0 &&
+      selectedScheduleIds.length === 0 &&
+      !selectedSpecialOption
+    ) {
+      toast.error("Please select a date/showtime or one of the alternative options.");
       return;
     }
-    if (schedules.length === 0 && selectedDates.length === 0) {
+    if (weekendSchedules.length === 0 && selectedDates.length === 0) {
       toast.error("Please select at least one option.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const selectedScheduleLabels = schedules
-        .filter((schedule) => selectedScheduleIds.includes(schedule.id))
+      const selectedScheduleLabels = (schedules.length > 0
+        ? schedules
+        : FALLBACK_MOVIE_SCHEDULES)
+        .filter(
+          (schedule) =>
+            isEligibleVotingSchedule(schedule) &&
+            selectedScheduleIds.includes(schedule.id)
+        )
         .map(formatSchedule);
+      const submittedScheduleLabels = selectedSpecialOption
+        ? []
+        : selectedScheduleLabels;
+      const submittedVotes = selectedSpecialOption
+        ? [selectedSpecialOption]
+        : submittedScheduleLabels;
       const { error } = await supabase
         .from("users")
         .update({
           voted_dates:
-            schedules.length > 0 ? selectedScheduleLabels : selectedDates,
+            weekendSchedules.length > 0 ? submittedVotes : selectedDates,
           voted_schedule_ids:
-            schedules.length > 0 ? selectedScheduleIds : user.voted_schedule_ids,
+            weekendSchedules.length > 0
+              ? selectedSpecialOption
+                ? []
+                : selectedScheduleIds
+              : user.voted_schedule_ids,
         })
         .eq("id", user.id);
 
@@ -297,9 +455,14 @@ export default function RsvpOpen({
 
       setUser({
         ...user,
-        voted_dates: schedules.length > 0 ? selectedScheduleLabels : selectedDates,
+        voted_dates:
+          weekendSchedules.length > 0 ? submittedVotes : selectedDates,
         voted_schedule_ids:
-          schedules.length > 0 ? selectedScheduleIds : user.voted_schedule_ids,
+          weekendSchedules.length > 0
+            ? selectedSpecialOption
+              ? []
+              : selectedScheduleIds
+            : user.voted_schedule_ids,
       });
       toast.success("Availability saved!");
       onComplete();
@@ -312,6 +475,28 @@ export default function RsvpOpen({
     }
   };
 
+  const rescindVote = async () => {
+    if (!user) return;
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({ voted_dates: [], voted_schedule_ids: [] })
+        .eq("id", user.id);
+      if (error) throw error;
+      setSelectedDates([]);
+      setSelectedScheduleIds([]);
+      setSelectedSpecialOption("");
+      setUser({ ...user, voted_dates: [], voted_schedule_ids: [] });
+      toast.success("Your vote was rescinded. You can vote again.");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to rescind vote");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+
   const savedDates = user?.voted_dates || [];
   const hasUnsavedChanges =
     selectedDates.length !== savedDates.length ||
@@ -322,10 +507,45 @@ export default function RsvpOpen({
     selectedScheduleIds.some((id) => !savedScheduleIds.includes(id));
   const scheduleVotes = (scheduleId: string) =>
     kirigtaVoters.filter((v) => v.voted_schedule_ids?.includes(scheduleId)).length;
+  const votingSchedules = schedules;
+  const weekendSchedules = votingSchedules.filter(isEligibleVotingSchedule);
+  const weekendDates = Array.from(
+    new Set(weekendSchedules.map((schedule) => schedule.show_date))
+  ).sort();
+  const activeVotingDate =
+    selectedVotingDate && weekendDates.includes(selectedVotingDate)
+      ? selectedVotingDate
+      : "";
+  const schedulesForVotingDate = weekendSchedules.filter(
+    (schedule) => schedule.show_date === activeVotingDate
+  );
+  const selectedSchedulesForVotingDate = schedulesForVotingDate.filter(
+    (schedule) => selectedScheduleIds.includes(schedule.id)
+  );
+  const legacyWeekendOptions = [
+    ...votingOptions.filter((option) => {
+    const dateMatch = option.match(/^\d{4}-\d{2}-\d{2}/);
+    return dateMatch ? isWeekendDate(dateMatch[0]) : false;
+    }),
+    ...SPECIAL_VOTING_OPTIONS.filter((option) => !votingOptions.includes(option)),
+  ];
+  const hasSpecificVote =
+    selectedScheduleIds.length > 0 && !selectedSpecialOption;
+  const hasSameScheduleSelection =
+    selectedScheduleIds.length === savedScheduleIds.length &&
+    selectedScheduleIds.every((id) => savedScheduleIds.includes(id));
+  const hasUnsavedVote =
+    (hasSpecificVote && !hasSameScheduleSelection) ||
+    (!hasSpecificVote && savedScheduleIds.length > 0) ||
+    selectedSpecialOption !==
+      (savedDates.find((option) => SPECIAL_VOTING_OPTIONS.includes(option)) || "");
   const venues = Array.from(new Set(schedules.map((schedule) => schedule.venue)));
+  const configuredSchedules = schedules.filter((schedule) =>
+    configuredScheduleIds.has(schedule.id)
+  );
   const previewDates = Array.from(
     new Set(
-      schedules
+      configuredSchedules
         .filter((schedule) => schedule.venue === previewVenue)
         .map((schedule) => schedule.show_date)
     )
@@ -333,12 +553,12 @@ export default function RsvpOpen({
   const effectivePreviewDate = previewDate || previewDates[0] || "";
   const previewSchedules = useMemo(
     () =>
-      schedules.filter(
+      configuredSchedules.filter(
         (schedule) =>
           schedule.venue === previewVenue &&
           schedule.show_date === effectivePreviewDate
       ),
-    [schedules, previewVenue, effectivePreviewDate]
+    [configuredSchedules, previewVenue, effectivePreviewDate]
   );
   const groupedSchedules = Array.from(
     schedules.reduce(
@@ -365,7 +585,7 @@ export default function RsvpOpen({
   // Find max votes to highlight leading slot
   const maxVotes = Math.max(
     0,
-    ...votingOptions.map(
+    ...legacyWeekendOptions.map(
       (opt) =>
         kirigtaVoters.filter(
           (v) => Array.isArray(v.voted_dates) && v.voted_dates.includes(opt)
@@ -396,9 +616,9 @@ export default function RsvpOpen({
               Self-Book or Pool
             </div>
             <p className="text-neutral-400">
-              Pwede kamo mag-book via me (with receipt &amp; seat map), or{" "}
+              Pwede kamo mag pa book haak (with receipt &amp; seat map), or{" "}
               <span className="text-neutral-200 font-medium">
-                book on your own
+                book your own tickets on the MovieWorld website
               </span>{" "}
               (recommended) once the date is final—I&apos;ll send the link.
             </p>
@@ -461,7 +681,19 @@ export default function RsvpOpen({
         ))}
       </div>
 
-      {schedules.length > 0 && (
+      {weekendSchedules.length === 0 && (
+        <section className="bg-neutral-900/60 border border-neutral-800/90 p-5 sm:p-6 rounded-2xl">
+          <h2 className="text-lg font-bold text-white">
+            Showtimes are being configured
+          </h2>
+          <p className="text-sm text-neutral-400 mt-2">
+            Dates and times will appear here once unavailable MovieWorld seats
+            have been marked by the admin.
+          </p>
+        </section>
+      )}
+
+      {weekendSchedules.length > 0 && (
         <>
           <section className="bg-neutral-900/60 border border-neutral-800/90 p-5 sm:p-6 rounded-2xl space-y-5">
             <div className="flex items-start justify-between gap-3">
@@ -470,84 +702,231 @@ export default function RsvpOpen({
                   When and where are we watching?
                 </h2>
                 <p className="text-xs text-neutral-400 mt-1">
-                  Select every Robinsons venue and showtime that works for you.
+                  First choose a weekend date, then choose the venue and showtime
+                  that works for you.
                 </p>
               </div>
               <MapPin className="w-5 h-5 text-green-400 shrink-0" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {schedules.map((schedule) => {
-                const isChecked = selectedScheduleIds.includes(schedule.id);
-                const votes = scheduleVotes(schedule.id);
-                const remaining = Math.max(
-                  schedule.total_seats - schedule.booked_seats,
-                  0
-                );
-                return (
-                  <button
-                    key={schedule.id}
-                    type="button"
-                    onClick={() =>
-                      setSelectedScheduleIds((current) =>
-                        isChecked
-                          ? current.filter((id) => id !== schedule.id)
-                          : [...current, schedule.id]
-                      )
-                    }
-                    className={`text-left p-4 rounded-xl border transition-colors ${
-                      isChecked
-                        ? "bg-green-500/10 border-green-500/50"
-                        : "bg-neutral-950/80 border-neutral-800 hover:border-neutral-700"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex gap-3 min-w-0">
-                        <div
-                          className={`w-5 h-5 mt-0.5 rounded-md border flex items-center justify-center shrink-0 ${
-                            isChecked
-                              ? "bg-green-500 border-green-500 text-neutral-950"
-                              : "border-neutral-700"
-                          }`}
-                        >
-                          {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+            <div>
+              <div className="text-[11px] font-mono uppercase tracking-wider text-neutral-500 mb-2">
+                1. Choose a date
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {weekendDates.map((date) => {
+                  const dateSchedules = weekendSchedules.filter(
+                    (schedule) => schedule.show_date === date
+                  );
+                  const dateVoteCount = dateSchedules.reduce(
+                    (count, schedule) => count + scheduleVotes(schedule.id),
+                    0
+                  );
+                  return (
+                    <button
+                      key={date}
+                      type="button"
+                      onClick={() => {
+                        setSelectedVotingDate(date);
+                        setSelectedSpecialOption("");
+                      }}
+                      className={`text-left p-4 rounded-xl border transition-colors ${
+                        activeVotingDate === date
+                          ? "bg-green-500/10 border-green-500/50"
+                          : "bg-neutral-950/80 border-neutral-800 hover:border-neutral-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-semibold text-neutral-100">
+                          {formatDateOption(date)}
+                        </span>
+                        <span className="text-xs font-mono text-neutral-400">
+                          {dateVoteCount} votes
+                        </span>
+                      </div>
+                      <div className="text-xs text-neutral-500 mt-1">
+                        {dateSchedules.length} showtime
+                        {dateSchedules.length === 1 ? "" : "s"} available
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[11px] font-mono uppercase tracking-wider text-neutral-500 mb-2">
+                Alternative responses
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {SPECIAL_VOTING_OPTIONS.map((option) => {
+                  const isSelected = selectedSpecialOption === option;
+                  const votes = kirigtaVoters.filter((voter) =>
+                    voter.voted_dates?.includes(option)
+                  ).length;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSpecialOption(isSelected ? "" : option);
+                        if (!isSelected) {
+                          setSelectedScheduleIds([]);
+                        }
+                      }}
+                      className={`text-left p-4 rounded-xl border transition-colors ${
+                        isSelected
+                          ? "bg-amber-500/10 border-amber-500/50"
+                          : "bg-neutral-950/80 border-neutral-800 hover:border-neutral-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-semibold text-neutral-100">
+                          {option}
+                        </span>
+                        <span className="text-xs font-mono text-neutral-400">
+                          {votes} votes
+                        </span>
+                      </div>
+                      <div className="text-xs text-neutral-500 mt-1">
+                        This is an alternative to selecting a specific showtime.
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[11px] font-mono uppercase tracking-wider text-neutral-500 mb-2">
+                2. Choose a time slot
+              </div>
+              <div className="space-y-3">
+                {selectedVotingDate && schedulesForVotingDate.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      {schedulesForVotingDate.map((schedule) => {
+                        const isSelected = selectedScheduleIds.includes(
+                          schedule.id
+                        );
+                        return (
+                          <button
+                            key={schedule.id}
+                            type="button"
+                            aria-pressed={isSelected}
+                            onClick={() => {
+                              setSelectedSpecialOption("");
+                              setSelectedScheduleIds((current) =>
+                                isSelected
+                                  ? current.filter((id) => id !== schedule.id)
+                                  : [...current, schedule.id]
+                              );
+                            }}
+                            className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors min-h-12 ${
+                              isSelected
+                                ? "border-green-500/60 bg-green-500/10"
+                                : "border-neutral-800 bg-neutral-950/80 hover:border-neutral-700"
+                            }`}
+                          >
+                            <span
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] font-bold ${
+                                isSelected
+                                  ? "border-green-400 bg-green-500 text-neutral-950"
+                                  : "border-neutral-700 text-transparent"
+                              }`}
+                            >
+                              ✓
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-neutral-100">
+                                {schedule.venue.replace("Robinsons ", "")}
+                              </span>
+                              <span className="block text-xs text-neutral-400 mt-0.5">
+                                {schedule.cinema} ·{" "}
+                                {formatTime12h(schedule.showtime)}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedSchedulesForVotingDate.length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] text-neutral-500">
+                          Selected time slot
+                          {selectedSchedulesForVotingDate.length > 1 ? "s" : ""}
                         </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-neutral-100">
-                            {formatSchedule(schedule)}
-                          </div>
-                          <div className="text-xs text-neutral-500 mt-1">
-                            {schedule.venue}
-                          </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedSchedulesForVotingDate.map((schedule) => (
+                            <button
+                              key={schedule.id}
+                              type="button"
+                              onClick={() =>
+                                setSelectedScheduleIds((current) =>
+                                  current.filter((id) => id !== schedule.id)
+                                )
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-md border border-green-500/40 bg-green-500/10 px-2 py-1 text-[11px] text-green-200 hover:bg-green-500/20"
+                              title={`Remove ${schedule.venue} ${schedule.cinema} ${formatTime12h(schedule.showtime)}`}
+                            >
+                              <span>
+                                {schedule.venue.replace("Robinsons ", "")} ·{" "}
+                                {schedule.cinema} · {formatTime12h(schedule.showtime)}
+                              </span>
+                              <span className="text-green-400">×</span>
+                            </button>
+                          ))}
                         </div>
                       </div>
-                      <span className="text-xs font-mono text-neutral-400 shrink-0">
-                        {votes} {votes === 1 ? "vote" : "votes"}
-                      </span>
-                    </div>
-                    <div className="mt-3 text-xs text-neutral-500">
-                      {remaining} of {schedule.total_seats} seats currently available
-                    </div>
-                  </button>
-                );
-              })}
+                    )}
+                  </>
+                ) : null}
+                {!selectedVotingDate && (
+                  <div className="rounded-xl border border-dashed border-neutral-800 p-5 text-sm text-neutral-500">
+                    Select a date above to see its available time slots.
+                  </div>
+                )}
+                {selectedVotingDate && schedulesForVotingDate.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-neutral-800 p-5 text-sm text-neutral-500">
+                    No showtimes are configured for this weekend date yet.
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
               <span className="text-xs text-neutral-400">
-                {selectedScheduleIds.length > 0 && !hasUnsavedScheduleChanges
+                {selectedSpecialOption
+                  ? selectedSpecialOption
+                  : selectedScheduleIds.length > 0 &&
+                    !hasUnsavedScheduleChanges
                   ? `Your choices are saved (${selectedScheduleIds.length} selected)`
                   : `${selectedScheduleIds.length} selected`}
               </span>
               <Button
                 onClick={onSubmit}
-                disabled={isSubmitting || selectedScheduleIds.length === 0}
+                disabled={
+                  isSubmitting ||
+                  (selectedScheduleIds.length === 0 && !selectedSpecialOption)
+                }
                 className="w-full sm:w-auto min-w-[180px] h-11 bg-green-600 hover:bg-green-500 text-white font-semibold"
               >
                 {isSubmitting
                   ? "Saving..."
-                  : !hasUnsavedScheduleChanges
+                  : !hasUnsavedVote
                   ? "Choices Saved"
                   : "Save My Choices"}
               </Button>
+              {savedDates.length > 0 || savedScheduleIds.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={rescindVote}
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto h-11 border-red-500/40 text-red-300 hover:bg-red-500/10"
+                >
+                  Rescind My Vote
+                </Button>
+              ) : null}
             </div>
           </section>
 
@@ -612,7 +991,7 @@ export default function RsvpOpen({
                     <div className="flex justify-between gap-3 text-sm text-neutral-200">
                       <span>{schedule.cinema}</span>
                       <span className="font-mono text-green-400">
-                        {schedule.showtime.slice(0, 5)}
+                        {formatTime12h(schedule.showtime)}
                       </span>
                     </div>
                     <div className="mt-2 text-xs text-neutral-400">
@@ -794,7 +1173,7 @@ export default function RsvpOpen({
                             >
                               <div className="flex justify-between gap-3 text-sm text-neutral-200">
                                 <span>
-                                  {schedule.cinema} · {schedule.showtime.slice(0, 5)}
+                                  {schedule.cinema} · {formatTime12h(schedule.showtime)}
                                 </span>
                                 <span
                                   className={`text-[11px] px-2 py-0.5 rounded border ${urgencyClass}`}
@@ -824,7 +1203,7 @@ export default function RsvpOpen({
       )}
 
       {/* Legacy date voting remains available until schedule rows are configured. */}
-      {schedules.length === 0 && (
+      {false && (
       /* Voting Card */
       <section className="bg-neutral-900/60 border border-neutral-800/90 p-5 sm:p-6 rounded-2xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -846,7 +1225,7 @@ export default function RsvpOpen({
         </div>
 
         <div className="space-y-2.5">
-          {votingOptions.map((option) => {
+          {legacyWeekendOptions.map((option) => {
             const isChecked = selectedDates.includes(option);
             const votersForOption = kirigtaVoters.filter(
               (v) =>
