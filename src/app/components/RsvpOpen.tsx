@@ -202,6 +202,32 @@ export default function RsvpOpen({
   const [previewDate, setPreviewDate] = useState("");
   const [movieMapScheduleId, setMovieMapScheduleId] = useState("");
   const [movieMapSeats, setMovieMapSeats] = useState<MovieScheduleSeat[]>([]);
+  const [infoCardStage, setInfoCardStage] = useState<1 | 2 | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setInfoCardStage(null);
+      return;
+    }
+    const hasConfirmed = sessionStorage.getItem(
+      `doomsday_vote_info_read:${user.id}`
+    );
+    setInfoCardStage(hasConfirmed ? null : 1);
+  }, [user?.id]);
+
+  const confirmInfoCard = () => {
+    if (infoCardStage === 1) {
+      setInfoCardStage(2);
+      return;
+    }
+    if (user?.id) {
+      sessionStorage.setItem(
+        `doomsday_vote_info_read:${user.id}`,
+        "confirmed"
+      );
+    }
+    setInfoCardStage(null);
+  };
 
   useEffect(() => {
     if (user?.voted_dates) {
@@ -512,6 +538,54 @@ export default function RsvpOpen({
   const weekendDates = Array.from(
     new Set(weekendSchedules.map((schedule) => schedule.show_date))
   ).sort();
+  const dayVoteSets = new Map<string, Set<string>>();
+  weekendSchedules.forEach((schedule) => {
+    const voterIds = kirigtaVoters
+      .filter((voter) => voter.voted_schedule_ids?.includes(schedule.id))
+      .map((voter) => voter.id);
+    const current = dayVoteSets.get(schedule.show_date) || new Set<string>();
+    voterIds.forEach((voterId) => current.add(voterId));
+    dayVoteSets.set(schedule.show_date, current);
+  });
+  const dayVoteCounts = new Map(
+    Array.from(dayVoteSets.entries()).map(([date, voterIds]) => [
+      date,
+      voterIds.size,
+    ])
+  );
+  const mostVotedDay = [...weekendDates]
+    .sort(
+      (a, b) =>
+        (dayVoteCounts.get(b) || 0) - (dayVoteCounts.get(a) || 0) ||
+        a.localeCompare(b)
+    )[0] || "";
+  const mostVotedDayLabel = mostVotedDay
+    ? new Date(`${mostVotedDay}T00:00:00`).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "No date has votes yet";
+  const timeVoteSets = new Map<string, Set<string>>();
+  weekendSchedules
+    .filter((schedule) => schedule.show_date === mostVotedDay)
+    .forEach((schedule) => {
+      const voterIds = kirigtaVoters
+        .filter((voter) => voter.voted_schedule_ids?.includes(schedule.id))
+        .map((voter) => voter.id);
+      const current = timeVoteSets.get(schedule.showtime) || new Set<string>();
+      voterIds.forEach((voterId) => current.add(voterId));
+      timeVoteSets.set(schedule.showtime, current);
+    });
+  const mostVotedTimeEntry = Array.from(timeVoteSets.entries())
+    .map(([time, voterIds]) => ({ time, count: voterIds.size }))
+    .sort(
+      (a, b) => b.count - a.count || a.time.localeCompare(b.time)
+    )[0];
+  const mostVotedTime = mostVotedTimeEntry
+    ? formatTime12h(mostVotedTimeEntry.time)
+    : "No time has votes yet";
   const activeVotingDate =
     selectedVotingDate && weekendDates.includes(selectedVotingDate)
       ? selectedVotingDate
@@ -594,7 +668,60 @@ export default function RsvpOpen({
   );
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 space-y-10">
+    <>
+      {infoCardStage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vote-info-title"
+            className="w-full max-w-lg rounded-2xl border border-green-500/30 bg-neutral-950 p-6 sm:p-7 shadow-2xl"
+          >
+            <div className="text-xs font-mono uppercase tracking-widest text-green-400">
+              {infoCardStage === 1 ? "Voting update" : "Please confirm"}
+            </div>
+            <h2
+              id="vote-info-title"
+              className="mt-2 text-2xl font-extrabold text-white"
+            >
+              Most voted schedule
+            </h2>
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
+                <div className="text-[11px] font-mono uppercase tracking-wider text-neutral-500">
+                  Most voted day
+                </div>
+                <div className="mt-1 text-sm font-semibold text-green-400">
+                  {mostVotedDayLabel}
+                </div>
+              </div>
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
+                <div className="text-[11px] font-mono uppercase tracking-wider text-neutral-500">
+                  Most voted time
+                </div>
+                <div className="mt-1 text-sm font-semibold text-green-400">
+                  {mostVotedTime}
+                </div>
+              </div>
+            </div>
+            <p className="mt-5 text-sm leading-relaxed text-neutral-300">
+              Voting will close on <span className="font-semibold text-white">November 22, Sunday</span>.
+              We will then proceed to the next step: finalizing the date and confirming
+              whether everyone approves of the most voted date.
+            </p>
+            <Button
+              type="button"
+              onClick={confirmInfoCard}
+              className="mt-6 h-11 w-full bg-green-600 text-sm font-semibold text-white hover:bg-green-500"
+            >
+              {infoCardStage === 1
+                ? "I have read this"
+                : "Yes, I confirm I have read this"}
+            </Button>
+          </div>
+        </div>
+      )}
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 space-y-10">
       <header className="space-y-4">
         <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-green-400">
           <Calendar className="w-3.5 h-3.5" /> Phase 1 {"//"} Schedule Poll
@@ -717,10 +844,7 @@ export default function RsvpOpen({
                   const dateSchedules = weekendSchedules.filter(
                     (schedule) => schedule.show_date === date
                   );
-                  const dateVoteCount = dateSchedules.reduce(
-                    (count, schedule) => count + scheduleVotes(schedule.id),
-                    0
-                  );
+                  const dateVoteCount = dayVoteCounts.get(date) || 0;
                   return (
                     <button
                       key={date}
@@ -843,6 +967,10 @@ export default function RsvpOpen({
                               <span className="block text-xs text-neutral-400 mt-0.5">
                                 {schedule.cinema} ·{" "}
                                 {formatTime12h(schedule.showtime)}
+                              </span>
+                              <span className="mt-1 block text-[10px] font-mono text-neutral-500">
+                                {scheduleVotes(schedule.id)}{" "}
+                                {scheduleVotes(schedule.id) === 1 ? "vote" : "votes"}
                               </span>
                             </span>
                           </button>
@@ -1342,6 +1470,7 @@ export default function RsvpOpen({
         </div>
       </section>
       )}
-    </div>
+      </div>
+    </>
   );
 }

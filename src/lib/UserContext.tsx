@@ -87,6 +87,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    if (user?.id) {
+      sessionStorage.removeItem(`doomsday_vote_info_read:${user.id}`);
+    }
     setUser(null);
   };
 
